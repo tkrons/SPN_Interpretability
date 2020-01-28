@@ -81,12 +81,15 @@ def get_adult_transactional(convert_tabular = False):
 
     if not convert_tabular:
         transaction_encoder = TransactionEncoder()
-        data = []
-        with open(path) as f:
-            for line in f.readlines():
-                data.append(set(line.strip().replace(' ', '').split(',')))
-        fit = transaction_encoder.fit(data)
-        one_hot_df = pd.DataFrame(fit.transform(data), columns=fit.columns_)
+        # data = []
+        # with open(path) as f:
+        #     for line in f.readlines():
+        #         data.append(set(line.strip().replace(' ', '').split(',')))
+        # fit = transaction_encoder.fit(data)
+        # one_hot_df = pd.DataFrame(fit.transform(data), columns=fit.columns_)
+        columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
+        tabular = pd.read_table(path, sep=',', names=columns, skipinitialspace=True)
+        one_hot_df = pd.get_dummies(tabular, prefix='', prefix_sep='', dtype=np.bool)
         return fn.transform_dataset(one_hot_df)
     else:
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']

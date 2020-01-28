@@ -397,10 +397,11 @@ def get_parametric_types_and_feature_ids(spn):
 
 def transform_dataset(df, feature_types=None):
     """
+    todo bug with boolean enncoding!
     :param df: any df
     :param feature_types: list of column types of df: ['discrete', 'numeric']
     len(feature_types) == len(df.columns)
-    :return: transformed_df, dict to transform back, and... something else?
+    :return: transformed_df, dict to transform back, parametric types
     """
     if feature_types is None: feature_types = get_feature_types_from_dataset(df)
     
@@ -409,7 +410,7 @@ def transform_dataset(df, feature_types=None):
     for i, col_name in enumerate(df.columns):
         
         if feature_types[i] == "discrete":
-            if df[col_name].dtype == np.dtype(np.int64).type:
+            if df[col_name].dtype in [np.dtype(np.int64).type, np.bool]:
                 unq_vals = sorted(df[col_name].unique())
             else:
                 unq_vals = df[col_name].unique()

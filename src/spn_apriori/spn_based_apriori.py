@@ -265,7 +265,6 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
         # out = (np.sum(_x, axis=0) / _n_rows)
         ranges = []
         for comb in itemsets:
-            #todo fix
             rang = [np.NaN] * len(value_dict)
             for col in comb:
                 # rang[col] = 1
