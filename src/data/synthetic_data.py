@@ -7,7 +7,7 @@ Created on 08.07.2019
 import numpy as np
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian
 from sklearn.datasets import make_blobs
-
+import pandas as pd
 
 def generate_dummy_dataset():
     a = np.r_[np.random.normal(10, 5, (300, 1)), np.random.normal(20, 10, (700, 1))]
@@ -73,6 +73,25 @@ def generate_gender_age_data(num_instances, rand_seed):
         data.append(inst)
     
     return np.array(data), [Categorical, Categorical, Gaussian, Gaussian]
+
+def generate_simple_transactions(only_n_rows = None, seed = None):
+    # apple: P(A) = 0.7
+    # cheese P(C | A) = 0.5 P(C | !A) = 0.2
+    # beer: P(B | C) = 0.3 P(B | !C) = 0.6
+    # dumpling P(D) = 0.7 uncorrelated
+    np.random.seed(seed)
+    data = np.random.choice([0, 1], size=(only_n_rows or 200, 4), p=[0.3, 0.7])
+    df = pd.DataFrame(data, columns=['apple', 'beer', 'cheese', 'dumpling'], dtype=np.bool)
+    df['cheese'] = df['apple'].apply(lambda x: np.random.random() < 0.5 if x else np.random.random() < 0.2)
+    df['beer'] = df['cheese'].apply(lambda x: np.random.random() < 0.3 if x else np.random.random() < 0.6)
+    value_dict = {0: ['discrete', 'apple', {0: False, 1: True}],
+                  1: ['discrete', 'beer', {0: False, 1: True}],
+                  2: ['discrete', 'cheese', {0: False, 1: True}],
+                  3: ['discrete', 'dumpling', {0: False, 1: True}]}
+    parametric_types = [Categorical, Categorical, Categorical, Categorical]
+
+    return df, value_dict, parametric_types
+
 
 
 

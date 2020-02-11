@@ -12,6 +12,7 @@ from spn.structure.Base import Context
 from spn.algorithms.LearningWrappers import learn_parametric
 from simple_spn import functions as fn
 from util import io
+import warnings
 
 
 
@@ -31,14 +32,16 @@ def learn_parametric_spn(data, parametric_types, rdc_threshold=0.3, min_instance
     return spn, const_time
 
 
-def create_parametric_spns(data, parametric_types, dataset_name, rdc_thresholds=[0.3], min_instances_slices=[0.05], value_dict=None, save=True):
-    for rdc_threshold in rdc_thresholds:
-        for min_instances_slice in min_instances_slices:
-            spn, const_time = learn_parametric_spn(data, parametric_types, rdc_threshold, min_instances_slice)
-            if save:
-                save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict)
-            else:
-                return spn, value_dict, parametric_types
+def create_parametric_spns(data, parametric_types, dataset_name, rdc_thresholds=[0.3], min_instances_slices=[0.05], value_dict=None, save=True, silence_warnings=False):
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for rdc_threshold in rdc_thresholds:
+            for min_instances_slice in min_instances_slices:
+                spn, const_time = learn_parametric_spn(data, parametric_types, rdc_threshold, min_instances_slice)
+                if save:
+                    save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict)
+                else:
+                    return spn, value_dict, parametric_types
 
 '''
 ***********************************************************************************************************

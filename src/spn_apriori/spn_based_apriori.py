@@ -256,7 +256,6 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
                 for val, name in values.items():
                     if trans_item == name or (trans_item == col_name and name == True): # one hot case
                         res.append((i, name, val))
-                        # return i, name, val todo faster
             assert len(res) in [0,1], "multiple values for {} in value_dict found: {}".format(trans_item, res)
             return res[0]
 
@@ -290,6 +289,7 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
             else:
                 res[i] = 0.
         return np.array(res)
+
 
     # end def: _support
 

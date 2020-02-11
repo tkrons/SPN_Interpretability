@@ -12,7 +12,6 @@ from simple_spn import functions as fn
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian
 from mlxtend.preprocessing import TransactionEncoder
 
-
 def get_T10I4D(max_num=100, max_insts=10000):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/itemset/T10I4D100K.dat"
     file = open(path, "r")
@@ -58,7 +57,7 @@ def get_titanic(col_names=None):
 
     return fn.transform_dataset(df)
 
-def get_adult_full():
+def get_adult_one_hot(): #todo do own data cleaning (reproducavbility)
     '''
     UCI adult dataset full
     :return:
@@ -71,9 +70,12 @@ def get_adult_full():
     df.dropna(inplace=True)
     return df
 
-def get_adult_transactional(convert_tabular = False):
+def get_adult_41_items(convert_tabular = False):
     '''
     UCI adult dataset. cleaned and in transactional form
+    The age was discretized. numeric columns (except age) were removed.
+    The purpose of this test is to assure that the algorithm can deal with a
+    small 2.2 MB (30k rows) data set reasonably efficiently.
     https://raw.githubusercontent.com/tommyod/Efficient-Apriori/master/efficient_apriori/tests/adult_data_cleaned.txt
     :return:
     '''
@@ -95,3 +97,14 @@ def get_adult_transactional(convert_tabular = False):
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
         tabular = pd.read_table(path, sep=',', names = columns, skipinitialspace=True)
         return fn.transform_dataset(tabular)
+
+def get_apps_one_hot():
+    #todo https://www.kaggle.com/lava18/google-play-store-apps
+    # actually, not that interesting? what kinda rules could we get?
+    pass
+
+def get_movies_one_hot():
+    #todo https://www.kaggle.com/tmdb/tmdb-movie-metadata
+    # which actors make movies successful?
+    # problem: needs lot of transformations
+    pass

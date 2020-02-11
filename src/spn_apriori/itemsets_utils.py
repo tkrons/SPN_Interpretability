@@ -3,12 +3,14 @@ from time import perf_counter
 import numpy as np
 import pandas as pd
 from mlxtend.frequent_patterns import apriori as mlxtend_apriori
+from mlxtend.frequent_patterns import association_rules
 from orangecontrib.associate import frequent_itemsets as orange_fpgrowth
 
 from spn_apriori.spn_based_apriori import spn_apriori
-
+import simple_spn.functions as fn
 
 def perf_comparison(one_hot_df, min_sup, spn, value_dict):
+    print('============= Benchmark ==================================')
     time_spn = []
     time_spn.append(perf_counter())
     for i in range(10):
@@ -27,7 +29,7 @@ def perf_comparison(one_hot_df, min_sup, spn, value_dict):
     time_fpgrowth = []
     time_fpgrowth.append(perf_counter())
     for i in range(10):
-        fpgrowth = fpgrowth_wrapper(one_hot_df, min_sup)
+        fpgrowth = fpgrowth_wrapper_orange(one_hot_df, min_sup)
         time_fpgrowth.append(perf_counter())
     time_diff_fpgrowth = [time_fpgrowth[i] - time_fpgrowth[i - 1] for i in range(1, len(time_fpgrowth[1:]))]
 
@@ -39,7 +41,7 @@ def perf_comparison(one_hot_df, min_sup, spn, value_dict):
     print('Mean time fpgrowth: {}'.format(np.mean(time_diff_fpgrowth)))
 
 
-def fpgrowth_wrapper(transactional_df, min_sup,):
+def fpgrowth_wrapper_orange(transactional_df, min_sup, ):
     columns = {i: c for i, c in enumerate(transactional_df.columns)}
     total_sup = int(np.floor(min_sup * len(transactional_df)))
     results = []
@@ -49,8 +51,43 @@ def fpgrowth_wrapper(transactional_df, min_sup,):
         results.append((new_set, new_support))
     return pd.DataFrame(results, columns=['itemsets', 'support'])
 
-def rule_interpretability_metric(rule_comparison_df):
-    #todo
-    #criteria length, high confidence, high conviction
-    def _calc_I_row(row):
-        row['antecedent']
+def simple_interpretable_rules(itemsets, top = 30,):
+    return _get_interpretable_best_lift_rules(association_rules(itemsets, metric='confidence', min_threshold=0.7), top = 20)
+
+def _get_interpretable_best_lift_rules(rules, top = 30, suffix=''):
+    '''
+    :param rule_comparison_df: needs cols: [antecedent, consequent, lift]
+    :param suffix: suffix of the metric columns. If you have a df with both SPN and apriori metrics, you'll need this
+    to specify which metrics to use for rule extraction. Default is empty string ('')
+    :return:
+    '''
+    def _rule_basic_score(row):
+        len_ant, len_cons = len(row['antecedents']), len(row['consequents'])
+        if len_cons != 1.:
+            return 0. #dont want longer consequent for now
+        lift = row['lift'+suffix]
+        # lambd = [0.2, 0.3, 0.5] #lift = 50%, I = 50%
+        return lift / len_ant
+
+    rules['score'] = rules.apply(_rule_basic_score, axis=1)
+    return rules.sort_values('score', ascending=False,).head(top)
+
+def set_contains_x(itemset, x):
+    '''Usage: rule_comparison.loc[rule_comparison.antecedents.apply(set_contains_x, args='Black')]'''
+    return x in itemset
+
+def support_of_set(df, s, ):
+    '''manually check support of set s in df. For lookup of missing itemsets'''
+    # if not np.isnan(s):
+    cols = [str(x) for x in s]
+    return len(df[df[cols].all(axis=1)]) / len(df)
+
+def spn_support_of_set(spn, s, value_dict):
+    rang = [np.NaN] * len(value_dict)
+    for i, l in value_dict.items():
+        if l[1] in s:
+            rang[i] = 1
+    return fn.prob_spflow(spn, rang)
+
+if __name__ == '__main__':
+    pass
