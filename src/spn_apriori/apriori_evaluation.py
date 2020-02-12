@@ -196,7 +196,7 @@ def spn_hyperparam_opt(df, test_frac = 0.5):
     spn_hyperparam_results.sort_values(by=['rdc_threshold', 'min_instances_slice'], inplace=True)
     return spn_hyperparam_results
 
-def scatter_plots(itemsets,):
+def scatter_plots(itemsets,): #todo scatter generalized (spn_test etc)
     # using ALL itemsets, missing and excess
     #polynomial regression to check trend of the difference
     regX = np.c_[itemsets['support_pred'].values, #(both['support'] ** 2).values
@@ -225,6 +225,21 @@ def scatter_plots(itemsets,):
     plt.xlabel('support')
     plt.ylabel('support_SPN - support_Apriori (difference)')
     # both = both.drop(columns=['support_mean'])
+    plt.show()
+
+    # diagonal scatterplot y = spn_ap x = normal_ap
+    #todo 'reverse' log to visualize whole value range
+    # https://stackoverflow.com/questions/5395554/custom-axis-scales-reverse-logarithmic
+    fig, ax = plt.subplots()
+    ax.set_xlim([0.005, 0.05])
+    ax.set_ylim([0.005, 0.05])
+    ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3", zorder=0)
+    plt.scatter(itemsets['support'], itemsets['support_pred'], s = 2, marker='.', zorder=1)
+    plt.xlabel('support')
+    plt.ylabel('support_pred')
+    plt.title('SPN_apriori support and actual support')
+    plt.tight_layout()
+    plt.savefig('../../_figures/{}.pdf'.format('scatter_support_deviation'))
     plt.show()
 
 def plot_error_brackets(itemsets, error_names, ylog=False): #todo discuss MRE = +inf problem and fix, plots are bad
@@ -324,7 +339,7 @@ if __name__ == '__main__':
     only_n_rows = None
     min_sup = 0.01
     # min_sup = 0 oder nah an null lässt PC einfrieren..
-    rdc_threshold, min_instances_slice = 0.1, 0.05
+    rdc_threshold, min_instances_slice = 0.1, 0.01
     recalc_spn = False
     benchmark = False
     spn_hyperparam_grid_search = False
@@ -384,21 +399,10 @@ if __name__ == '__main__':
     all_itemsets = calc_itemsets_df(transactional_df, spn, min_sup, value_dict=value_dict)
     scatter_plots(all_itemsets)
 
-    evals = cross_eval(df, dataset_name, [0.01, 0.02, 0.05, 0.1, 0.2, 0.4], value_dict, recalc_spn=recalc_spn)
+    evals = cross_eval(df, dataset_name, [0.01, 0.03, 0.05, 0.1, 0.2, 0.4], value_dict, recalc_spn=recalc_spn)
     print(evals.to_string())
 
-    #eval different hyper params
-    cross_eval_hyperparams = []
-    for rdc in [0.1, ]:
-        for  mis in [0.001, ]:
-            print('SPN Params: rdc {}, mis {}'.format(rdc, mis))
-            eval_spn_params = cross_eval(df, dataset_name, [0.01, 0.05, 0.2], value_dict, recalc_spn=recalc_spn,
-                                         min_instances_slice=mis, rdc_threshold=rdc)
-            eval_spn_params.reset_index(inplace=True)
-            eval_spn_params['SPN Params'] = [(rdc, mis)] * len(eval_spn_params) # assigning a list doesnt work
-            cross_eval_hyperparams.append(eval_spn_params)
-    cross_eval_hyperparams = pd.concat(cross_eval_hyperparams, ignore_index=True).set_index(['SPN Params', 'min_sup', 'compare'])
-    print(cross_eval_hyperparams.to_string())
+
 
     #todo fix support_pred = 1.0 Bug. for values in valuedict if not occuring in dataset
     print('itemsets with the biggest difference:')
