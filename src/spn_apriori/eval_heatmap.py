@@ -14,7 +14,6 @@ from spn.structure.leaves.parametric.Parametric import Categorical
 
 
 dataset_name = 'UCI'
-rdc_threshold, min_instances_slice = 0.1, 0.05
 recalc_spn = False
 
 rdc_range = [0.1, 0.2, 0.3]
@@ -23,17 +22,6 @@ min_sup_range = [0.01, 0.03, 0.05, 0.1, 0.2, 0.4]
 
 if dataset_name == 'UCI':
     transactional_df, value_dict, parametric_types = real_data.get_adult_41_items()
-
-# SPN generation
-if recalc_spn or not spn_handler.exist_spn(dataset_name, rdc_threshold, min_instances_slice):
-    print("======================== Creating SPN ... ===============")
-    parametric_types = [Categorical for _ in transactional_df.columns]
-    # Creates the SPN and saves to a file
-    spn_handler.create_parametric_spns(transactional_df.values, parametric_types, dataset_name, value_dict=value_dict,
-                                       rdc_thresholds=[rdc_threshold],
-                                       min_instances_slices=[min_instances_slice],
-                                       silence_warnings=True)
-
 
 # eval different hyper params
 cross_eval_hyperparams = []
@@ -51,8 +39,10 @@ print(cross_eval_hyperparams.to_string())
 cross_eval_hyperparams.to_csv('cross_eval_hyper.csv', sep=',')
 
 error_to_use = 'MAE'
-for min_sup in min_sup_range:
-
+fig, axes = plt.subplots(int(np.ceil(len(min_sup_range) / 3)), 3, figsize=(12,8),
+                         sharex=True, sharey=True)
+for i, min_sup in enumerate(min_sup_range):
+    ax = axes.flat[i]
     df = cross_eval_hyperparams[error_to_use].xs([min_sup, 'spn_vs_test'], level=[1,2])
     df = df.reset_index()
     df['rdc'] = df['SPN Params'].apply(lambda x: x[0])
@@ -60,9 +50,8 @@ for min_sup in min_sup_range:
     df = df.drop(columns=['SPN Params']).pivot(index='mis', columns='rdc').sort_index(ascending=False)
     print(df)
     mat = df.values
-
-    fig, ax = plt.subplots()
-    im = ax.imshow(mat)
+    zmax = df[error_to_use].max().max()
+    im = ax.imshow(mat, vmax=zmax, cmap=plt.get_cmap('coolwarm'))
 
     # We want to show all ticks...
     ax.set_xticks(np.arange(len(rdc_range)))
@@ -75,14 +64,30 @@ for min_sup in min_sup_range:
     # Loop over data dimensions and create text annotations.
     for i in range(len(mis_range)):
         for j in range(len(rdc_range)):
-            text = ax.text(j, i, r'{:3f}'.format(mat[i, j]), ha="center", va="center", color="w")
+            text = ax.text(j, i, r'{:3f}'.format(mat[i, j]), ha="center", va="center", color="black")
 
-    plt.colorbar(im, ax=ax)
-    ax.set_title('{} spn_vs_train for different rdc and mis values. minsup: {}'.format(error_to_use, min_sup))
-    fig.tight_layout()
-    # plt.savefig("heatmap_test.pdf")
+    ax.set_title('{} minsup: {}'.format(error_to_use, min_sup))
 
-    plt.show()
+# fig.subplots_adjust(right=0.9)
+# cbar_ax = fig.add_axes([0.85, 0.15, 0.05, 0.7])
+# fig.colorbar(im, cax=cbar_ax)
+# # plt.colorbar(im, ax=ax)
+# fig.tight_layout()
+plt.subplots_adjust(bottom=0.1, right=0.8, top=0.9)
+cax = plt.axes([0.85, 0.1, 0.075, 0.8])
+fig.colorbar(im, cax=cax)
+
+# add a big axes, hide frame
+totalax = fig.add_subplot(111, frameon=False)
+# hide tick and tick label of the big axes
+plt.tick_params(labelcolor='none', which='both', top='off', bottom='off', left='off', right='off')
+totalax.grid(False)
+plt.xlabel("rdc_threshold")
+plt.ylabel("min_instances_split")
+plt.title('MAE of SPN-apriori compared with test set (50% train/test split)')
+
+plt.savefig("../../_figures/subplots_heatmap.pdf")
+plt.show()
 
 
 
