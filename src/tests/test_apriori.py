@@ -8,6 +8,9 @@ from mlxtend.frequent_patterns import apriori as mlxtend_apriori
 from mlxtend.frequent_patterns import fpgrowth as mlxtend_fpgrowth
 from mlxtend.frequent_patterns import association_rules as mlxtend_association_rules
 from mlxtend.preprocessing import TransactionEncoder
+
+import spn_apriori.itemsets_utils
+
 transaction_encoder = TransactionEncoder()
 
 import pandas as pd
@@ -22,7 +25,7 @@ def test_spn_apriori_synthetic():
 
 def test_spn_apriori_real():
     df, value_dict, parametric_types = real_data.get_adult_41_items()
-    eval = evaluation.cross_eval(df, 'UCI', [0.01, 0.4], value_dict, recalc_spn=False)
+    eval = spn_apriori.itemsets_utils.cross_eval(df, 'UCI', [0.01, 0.4], value_dict, recalc_spn=False)
     expect = np.array([ # AE    MAE     MRE     MISS        EXCESS
          [2.94790000e+00, 1.38986327e-03, 4.62524330e-02, 3.50000000e+01, 4.00000000e+01, 2.12100000e+03],
          [4.53490000e+00, 2.08981567e-03, 5.15308517e-02, 9.40000000e+01, 1.73000000e+02, 2.17000000e+03],

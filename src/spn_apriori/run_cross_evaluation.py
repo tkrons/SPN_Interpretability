@@ -9,9 +9,8 @@ import pandas as pd
 
 from data import real_data, synthetic_data
 from simple_spn import spn_handler
-from spn_apriori.apriori_evaluation import cross_eval
+from spn_apriori.itemsets_utils import cross_eval
 from spn.structure.leaves.parametric.Parametric import Categorical
-
 
 dataset_name = 'UCI'
 recalc_spn = False
@@ -39,11 +38,12 @@ print(cross_eval_hyperparams.to_string())
 cross_eval_hyperparams.to_csv('cross_eval_hyper.csv', sep=',')
 
 error_to_use = 'MAE'
+which_comparison = 'spn_vs_test'
 fig, axes = plt.subplots(int(np.ceil(len(min_sup_range) / 3)), 3, figsize=(12,8),
                          sharex=True, sharey=True)
 for i, min_sup in enumerate(min_sup_range):
     ax = axes.flat[i]
-    df = cross_eval_hyperparams[error_to_use].xs([min_sup, 'spn_vs_test'], level=[1,2])
+    df = cross_eval_hyperparams[error_to_use].xs([min_sup, which_comparison], level=[1,2])
     df = df.reset_index()
     df['rdc'] = df['SPN Params'].apply(lambda x: x[0])
     df['mis'] = df['SPN Params'].apply(lambda x: x[1])
@@ -59,7 +59,6 @@ for i, min_sup in enumerate(min_sup_range):
     # ... and label them with the respective list entries
     ax.set_xticklabels(rdc_range)
     ax.set_yticklabels(mis_range)
-
 
     # Loop over data dimensions and create text annotations.
     for i in range(len(mis_range)):
@@ -84,9 +83,9 @@ plt.tick_params(labelcolor='none', which='both', top='off', bottom='off', left='
 totalax.grid(False)
 plt.xlabel("rdc_threshold")
 plt.ylabel("min_instances_split")
-plt.title('MAE of SPN-apriori compared with test set (50% train/test split)')
+plt.title('MAE of SPN-apriori {}'.format(which_comparison))
 
-plt.savefig("../../_figures/subplots_heatmap.pdf")
+plt.savefig("../../_figures/{}_subplots_heatmap.pdf".format(which_comparison))
 plt.show()
 
 
