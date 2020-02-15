@@ -14,7 +14,6 @@ from data import synthetic_data
 from simple_spn import spn_handler
 from spn.structure.leaves.parametric.Parametric import Categorical
 from spn_apriori.itemsets_utils import perf_comparison, scatter_plots, cross_eval, get_error_totals, calc_itemsets_df
-# todo circular?
 
 '''
 results: bigger support: SPN_apriori approaches normal apriori. smaller generalization error
@@ -53,7 +52,7 @@ Rules:
 '''
 
 
-def spn_hyperparam_opt(df, test_frac = 0.5):
+def spn_hyperparam_opt(df, value_dict, test_frac = 0.5):
     print('============= SPN Hyperparameter Optimization ================')
     error_types = ['AE', 'MAE', 'MRE']
     rows = []
@@ -68,20 +67,18 @@ def spn_hyperparam_opt(df, test_frac = 0.5):
         # for i in range(100):
             # rdc_threshold, min_instances_slice = np.random.uniform(0., 0.7), np.random.uniform(0., 0.5)
             row = {'rdc_threshold': rdc_threshold, 'min_instances_slice': min_instances_slice}
-            if recalc_spn or not spn_handler.exist_spn(dataset_name, rdc_threshold, min_instances_slice):
+            if True or not spn_handler.exist_spn(dataset_name, rdc_threshold, min_instances_slice):
                 print("======================== Creating SPN ... ===============")
                 parametric_types = [Categorical for _ in train.columns]
                 # Creates the SPN and saves to a file
-                spn_handler.create_parametric_spns(train.values, parametric_types, dataset_name,
+                spn_handler.create_parametric_spns(train.values, parametric_types, dataset_name, value_dict=value_dict,
                                                    rdc_thresholds=[rdc_threshold],
                                                    min_instances_slices=[min_instances_slice],
                                                    silence_warnings=True)
-            spn, _, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
+            spn, value_dict, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
             num_nodes = len(get_nodes_by_type(spn, Node))
             row['num_nodes'] = num_nodes
-            #todo why is there a test in calc_itemsets
-            raise ValueError('why is there a test in calc_itemsets')
-            error_values = get_error_totals(calc_itemsets_df(test, spn, min_sup, value_dict), min_sup, errors=error_types)
+            error_values = get_error_totals(calc_itemsets_df(train, spn, min_sup, test=test, value_dict=value_dict), min_sup, errors=error_types)
             for e_name, e_val in zip(error_types, error_values):
                 row[e_name] = e_val
             rows.append(row)
@@ -147,14 +144,14 @@ def plot_error_brackets(itemsets, error_names, ylog=False): #todo discuss MRE = 
 
 if __name__ == '__main__':
     ## PARAMETERS ##
-    dataset_name = "UCI" #todo fix synthetic data: AttributeError: 'float' object has no attribute 'item'
+    dataset_name = "apriori_test"
     only_n_rows = None
     min_sup = 0.01
     # min_sup = 0 oder nah an null lässt PC einfrieren..
     rdc_threshold, min_instances_slice = 0.1, 0.01
     recalc_spn = False
     benchmark = False
-    spn_hyperparam_grid_search = False
+    spn_hyperparam_grid_search = True
     # bug support_pred=1.0 @ seed(893) minsup10% 50 rows
     # seed = np.random.randint(1000)
     seed = 755
@@ -205,7 +202,8 @@ if __name__ == '__main__':
         perf_comparison(transactional_df, min_sup, spn, value_dict)
 
     if spn_hyperparam_grid_search:
-        hyperparam_results = spn_hyperparam_opt(transactional_df)
+        hyperparam_results = spn_hyperparam_opt(transactional_df, value_dict)
+        print(hyperparam_results)
 
     # includes excess and missing itemsets!!
     all_itemsets = calc_itemsets_df(transactional_df, spn, min_sup, value_dict=value_dict)

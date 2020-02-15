@@ -397,7 +397,6 @@ def get_parametric_types_and_feature_ids(spn):
 
 def transform_dataset(df, feature_types=None):
     """
-    todo bug with boolean enncoding!
     :param df: any df
     :param feature_types: list of column types of df: ['discrete', 'numeric']
     len(feature_types) == len(df.columns)

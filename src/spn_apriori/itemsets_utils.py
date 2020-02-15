@@ -128,10 +128,13 @@ def scatter_plots(itemsets, fname=None):
     plt.plot(np.linspace(0, 1, 100), np.zeros([100, 1]), color='black', ) # 0 line
     plt.plot(linearspace[:, 0], reg_yhat, color='red')
     xy = [itemsets['support'].values, itemsets['difference'].values]
-    plt.xlim(0, xy[0].max().item() + 0.05)
-    # plt.ylim(-0.05, 0.05)
+    plt.xlim(0, float(xy[0].max()) + 0.05)
+    plt.ylim(-0.05, 0.05)
+    # plt.yscale('symlog') #todo which scale
     plt.xlabel('support')
-    plt.ylabel('support_SPN - support_Apriori (difference)')
+    plt.ylabel('support_pred - support (AE)')
+    if fname:
+        plt.title(fname.split('.pdf')[0])
     # both = both.drop(columns=['support_mean'])
     # plt.savefig('../../_figures/{}'.format('difference_scatter_' + fname))
     plt.show()
@@ -140,13 +143,32 @@ def scatter_plots(itemsets, fname=None):
     #todo 'reverse' log to visualize whole value range
     # https://stackoverflow.com/questions/5395554/custom-axis-scales-reverse-logarithmic
     fig, ax = plt.subplots()
-    ax.set_xlim([0.005, 0.05])
-    ax.set_ylim([0.005, 0.05])
-    ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3", zorder=0)
+    def forward(x):
+        r = np.log(np.log(x) + 10)
+        r[np.isneginf(r)] = 0
+        return r
+
+    def backward(x):
+        # if x <= 0:
+        #     return 0
+        return np.exp(np.exp(x) - 10)
+    # ax.set_xlim([0.005, 0.05])
+    # ax.set_ylim([0.005, 0.05])
+    xymax = itemsets[['support', 'support_pred']].max().max()
+    # ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3", zorder=0)
     plt.scatter(itemsets['support'], itemsets['support_pred'], s = 2, marker='.', zorder=1)
+    # ax.set_yscale('function', functions=((lambda x: np.log(x)+10,
+    #                                       lambda x: np.exp(x - 10))))
+    # ax.set_xscale('function', functions=((lambda x: np.log(x)+10,
+    #                                       lambda x: np.exp(x - 10))))
+    # ax.set_xscale('function', functions = (forward, backward))
+    # ax.set_yscale('function', functions=(forward, backward))
+    ax.set_xlim([0., xymax+0.03])
+    ax.set_ylim([0., xymax+0.03])
+
     plt.xlabel('support')
     plt.ylabel('support_pred')
-    plt.tight_layout()
+    # plt.tight_layout()
     if fname:
         plt.savefig('../../_figures/{}'.format('scatter_support_deviation_' + fname))
     plt.show()
