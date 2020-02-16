@@ -144,14 +144,14 @@ def plot_error_brackets(itemsets, error_names, ylog=False): #todo discuss MRE = 
 
 if __name__ == '__main__':
     ## PARAMETERS ##
-    dataset_name = "apriori_test"
+    dataset_name = "play_store"
     only_n_rows = None
     min_sup = 0.01
     # min_sup = 0 oder nah an null lässt PC einfrieren..
     rdc_threshold, min_instances_slice = 0.1, 0.01
-    recalc_spn = False
+    recalc_spn = True
     benchmark = False
-    spn_hyperparam_grid_search = True
+    spn_hyperparam_grid_search = False
     # bug support_pred=1.0 @ seed(893) minsup10% 50 rows
     # seed = np.random.randint(1000)
     seed = 755
@@ -171,6 +171,9 @@ if __name__ == '__main__':
         df, value_dict, parametric_types = real_data.get_adult_41_items(convert_tabular=True)
         #get transactions for normal apriori
         transactional_df, _, _ = real_data.get_adult_41_items()
+    elif dataset_name == 'play_store':
+        df, value_dict, parametric_types = real_data.get_play_store()
+        transactional_df = df
 
     if only_n_rows and only_n_rows < len(df):
         sample_indices = np.random.random_integers(0, len(df), only_n_rows)
@@ -209,10 +212,8 @@ if __name__ == '__main__':
     all_itemsets = calc_itemsets_df(transactional_df, spn, min_sup, value_dict=value_dict)
     scatter_plots(all_itemsets)
 
-    evals = cross_eval(df, dataset_name, [0.01, 0.03, 0.05, 0.1, 0.2, 0.4], value_dict, recalc_spn=recalc_spn)
-    print(evals.to_string())
-
-
+    # evals = cross_eval(df, dataset_name, [0.01, 0.03, 0.05, 0.1, 0.2, 0.4], value_dict, recalc_spn=recalc_spn)
+    # print(evals.to_string())
 
     #todo fix support_pred = 1.0 Bug. for values in valuedict if not occuring in dataset
     print('itemsets with the biggest difference:')
@@ -230,32 +231,3 @@ if __name__ == '__main__':
     plot_error_brackets(all_itemsets, ['AE', 'MAE', 'MRE'],)
 
     print('AE: {}\tMAE: {}\tSE: {}\tMSE: {}'.format(totalAE, totalMAE, totalSE, totalMSE))
-
-
-    print('================ Calculating Rules and Metrics ===============')
-    spn_apriori_df = all_itemsets.reset_index()[['itemsets', 'support_pred']]
-    normal_apriori_df = all_itemsets.reset_index()[['itemsets', 'support']]
-    spn_rules = association_rules(spn_apriori_df.rename(columns={'support_pred': 'support'}),
-                                  metric='confidence', min_threshold=0.80)
-    normal_apriori_rules = association_rules(normal_apriori_df,
-                                             metric='confidence', min_threshold=0.80)
-
-    #======= Analyze resulting rule quality
-    rule_comparison = pd.merge(spn_rules, normal_apriori_rules, on=['antecedents', 'consequents'], how='outer', suffixes=['_SPN', '_Apriori'])
-    rule_comparison.set_index(['antecedents', 'consequents'], inplace=True)
-    rule_comparison.dropna(inplace=True)
-
-    for col in rule_comparison.columns:
-        if '_SPN' in col:
-            metric = col.split('_SPN')[0]
-            rule_comparison[metric + '_Diff'] = rule_comparison[col] - rule_comparison[metric + '_Apriori']
-    rule_comparison = rule_comparison.reset_index()
-    # print(rule_comparison.std(axis=0))
-    ordered_cols = ['antecedents', 'consequents']
-    for  metric in list(set(spn_rules.columns) - set(['antecedents', 'consequents'])):
-        ordered_cols = ordered_cols + [metric+'_SPN', metric+'_Apriori', metric+'_Diff']
-    rule_comparison = rule_comparison.reindex(ordered_cols, axis=1)
-    print(rule_comparison.columns)
-    rule_comparison.sort_values(by='lift_SPN', ascending=False, inplace=True)
-    print(rule_comparison.sort_values(by='lift_SPN', ascending=False).head(10).to_string())
-    print(rule_comparison.mean())

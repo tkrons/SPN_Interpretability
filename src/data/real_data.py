@@ -9,8 +9,19 @@ import os
 import numpy as np
 import pandas as pd
 from simple_spn import functions as fn
-from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian
+from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian, Bernoulli, Poisson
+from simple_spn.functions import get_feature_types_from_dataset
 from mlxtend.preprocessing import TransactionEncoder
+
+def get_real_data(name, **kwargs):
+    '''wrapper to get data by name
+    @:param name: titanic, T10I4D, play_store, adult
+    '''
+    case = {'titanic': get_titanic,
+            'T10I4D': get_T10I4D,
+            'play_store': get_play_store,
+            'adult41': get_adult_41_items}
+    return case[name](**kwargs)
 
 def get_T10I4D(max_num=100, max_insts=10000):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/itemset/T10I4D100K.dat"
@@ -98,10 +109,52 @@ def get_adult_41_items(convert_tabular = False):
         tabular = pd.read_table(path, sep=',', names = columns, skipinitialspace=True)
         return fn.transform_dataset(tabular)
 
-def get_apps_one_hot():
+def get_play_store(one_hot=True):
     #todo https://www.kaggle.com/lava18/google-play-store-apps
-    # actually, not that interesting? what kinda rules could we get?
-    pass
+    path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/play_store/googleplaystore.csv"
+    df = pd.read_table(path, sep=',')
+    df.columns
+    #filter weird stuff
+    df = df[~(df.Category == "1.9")]
+
+    #feature engineering
+    # df.loc[df.Price == 0, 'Price'] = 0.
+    # df.loc[0 < df.Price <= 1, 'Price'] = 1.
+    # df.loc[1 < df.Price <= 3, 'Price'] = 3.
+    #parse $ strings round price to ceil
+    # df.Price = df.Price.apply(lambda x: np.ceil(float(x.split('$')[0])))
+    def _parse(x):
+        try:
+            f = float(x.split('$')[-1])
+        except ValueError:
+            f = np.NaN
+        # return int(np.ceil(f))
+        return  f
+    df.Price = df.Price.apply(_parse)
+    df.Price = pd.cut(df.Price, [-np.inf, 0, 1, 2, 3, 5, 10, 20, 50, np.inf],
+                      labels= ['0', '0-1', '1-2', '2-3', '3-5', '5-10', '10-20', '20-50', '50+']).astype(str)
+    df = df[df.Genres.isin(df.Genres.value_counts()[:25].index)]
+    # df['Reviews'] =
+    df.Reviews = pd.cut(df['Reviews'].astype(float),
+                        [-np.inf, 0, 10, 100, 1000, 1e4, 1e5, 1e6],
+                        labels = ['0', '<= 10', '<= 100', '<= 1000', '<= 10,000', '<= 100,000', '<= 1,000,000'],
+                        retbins=False, include_lowest=False).astype(str)
+    df.Rating = pd.cut(df['Rating'].astype(float),
+                        [1, 2, 3, 4, 5],
+                        labels = ['1-2', '2-3', '3-4', '4-5'],
+                        retbins=False, include_lowest=False).astype(str)
+    cols = ['Category', 'Price', 'Rating', 'Genres', 'Content Rating', 'Reviews', 'Installs']
+    # original data value_dict (tabular data!)
+    value_dict = {i: ['discrete', dict(enumerate(df[c].value_counts().index))] for i, c in enumerate(cols)}
+    parametric_types = [Categorical, Categorical, Categorical, Categorical, Categorical, Categorical, Categorical, Categorical]
+    df = df[cols].dropna(axis=1, )
+
+    #one hot data
+    onehot = pd.get_dummies(df[cols], prefix=cols, prefix_sep='=')
+    # value_dict_onehot = {i:}
+    parametric_types_onehot = get_feature_types_from_dataset(onehot)
+    _, value_dict_onehot, _ = fn.transform_dataset(onehot, ['discrete'] * len(onehot.columns))
+    return onehot, value_dict_onehot, parametric_types_onehot
 
 def get_movies_one_hot():
     #todo https://www.kaggle.com/tmdb/tmdb-movie-metadata
