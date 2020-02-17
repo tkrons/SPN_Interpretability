@@ -58,7 +58,7 @@ def fpgrowth_wrapper_orange(transactional_df, min_sup, ):
     return pd.DataFrame(results, columns=['itemsets', 'support'])
 
 def simple_interpretable_rules(itemsets, top = 30,):
-    return _get_interpretable_best_lift_rules(association_rules(itemsets, metric='confidence', min_threshold=0.7), top = 20)
+    return _get_interpretable_best_lift_rules(association_rules(itemsets, metric='confidence', min_threshold=0.70), top = 20)
 
 def _get_interpretable_best_lift_rules(rules, top = 30, suffix=''):
     '''
@@ -71,9 +71,10 @@ def _get_interpretable_best_lift_rules(rules, top = 30, suffix=''):
         len_ant, len_cons = len(row['antecedents']), len(row['consequents'])
         if len_cons != 1.:
             return 0. #dont want longer consequent for now
+        conf = row['confidence' + suffix]
         lift = row['lift'+suffix]
         # lambd = [0.2, 0.3, 0.5] #lift = 50%, I = 50%
-        return lift / len_ant
+        return conf * lift * 1/len_ant
 
     rules['score'] = rules.apply(_rule_basic_score, axis=1)
     return rules.sort_values('score', ascending=False,).head(top)
@@ -99,7 +100,7 @@ if __name__ == '__main__':
     pass
 
 
-def scatter_plots(itemsets, fname=None):
+def difference_plot(itemsets, fname=None, reg_line=True):
     '''
     :param itemsets: itemsets with support (GT) and support_pred (PRED)
     :param GT_name: type of GT data, either 'test' or 'train'
@@ -124,21 +125,26 @@ def scatter_plots(itemsets, fname=None):
     # plt.show()
 
     # xy = sorted(xy, key=lambda x: x[0])
-    plt.scatter(itemsets['support'], itemsets['difference'], color='blue', label='SPN', marker='o', s=6)
+    plt.scatter(itemsets['support'], itemsets['difference'], color='blue', label='SPN', marker='.', s=3, alpha=0.5)
     plt.plot(np.linspace(0, 1, 100), np.zeros([100, 1]), color='black', ) # 0 line
-    plt.plot(linearspace[:, 0], reg_yhat, color='red')
+    if reg_line:
+        plt.plot(linearspace[:, 0], reg_yhat, color='red')
     xy = [itemsets['support'].values, itemsets['difference'].values]
     plt.xlim(0, float(xy[0].max()) + 0.05)
-    plt.ylim(-0.05, 0.05)
+    # ymax = itemsets.difference.abs().max()
+    # plt.ylim(-ymax - 0.01, ymax + 0.01)
+    plt.ylim(-0.02, 0.02)
     # plt.yscale('symlog') #todo which scale
     plt.xlabel('support')
-    plt.ylabel('support_pred - support (AE)')
+    plt.ylabel('residual (support - support_pred)')
     if fname:
         plt.title(fname.split('.pdf')[0])
+        plt.savefig('../../_figures/{}'.format('residuals_' + fname))
     # both = both.drop(columns=['support_mean'])
     # plt.savefig('../../_figures/{}'.format('difference_scatter_' + fname))
     plt.show()
 
+def diagonal_support_scatter(itemsets, fname=None,):
     # diagonal scatterplot y = spn_ap x = normal_ap
     #todo 'reverse' log to visualize whole value range
     # https://stackoverflow.com/questions/5395554/custom-axis-scales-reverse-logarithmic
@@ -152,8 +158,8 @@ def scatter_plots(itemsets, fname=None):
         # if x <= 0:
         #     return 0
         return np.exp(np.exp(x) - 10)
-    # ax.set_xlim([0.005, 0.05])
-    # ax.set_ylim([0.005, 0.05])
+    ax.set_xlim([0.005, 0.05])
+    ax.set_ylim([0.005, 0.05])
     xymax = itemsets[['support', 'support_pred']].max().max()
     # ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3", zorder=0)
     plt.scatter(itemsets['support'], itemsets['support_pred'], s = 2, marker='.', zorder=1)
@@ -163,8 +169,8 @@ def scatter_plots(itemsets, fname=None):
     #                                       lambda x: np.exp(x - 10))))
     # ax.set_xscale('function', functions = (forward, backward))
     # ax.set_yscale('function', functions=(forward, backward))
-    ax.set_xlim([0., xymax+0.03])
-    ax.set_ylim([0., xymax+0.03])
+    # ax.set_xlim([0., xymax+0.03])
+    # ax.set_ylim([0., xymax+0.03])
 
     plt.xlabel('support')
     plt.ylabel('support_pred')
@@ -173,6 +179,12 @@ def scatter_plots(itemsets, fname=None):
         plt.savefig('../../_figures/{}'.format('scatter_support_deviation_' + fname))
     plt.show()
 
+
+
+def scatter_plots(itemsets, fname=None, reg_line=True):
+    '''wrapper for multiple evaluation plots'''
+    difference_plot(itemsets, fname, reg_line)
+    diagonal_support_scatter(itemsets, fname)
 
 def cross_eval(transactional_df, dataset_name, min_sup_steps, value_dict,
                recalc_spn = False, rdc_threshold = 0.1, min_instances_slice = 0.05):
@@ -202,9 +214,9 @@ def cross_eval(transactional_df, dataset_name, min_sup_steps, value_dict,
 
         if min_sup_eval == min(min_sup_steps):
             # do scatter plots for spn_vs_train and spn_vs_test
-            scatter_plots(one_v_two, 'train_vs_test.pdf')
-            scatter_plots(three_v_one, 'rdc={}_mis={}_GT=test.pdf'.format(rdc_threshold,min_instances_slice))
-            scatter_plots(three_v_two, 'rdc={}_mis={}_GT=train.pdf'.format(rdc_threshold,min_instances_slice))
+            scatter_plots(one_v_two, 'train_vs_test.pdf', reg_line=False)
+            scatter_plots(three_v_one, 'rdc={}_mis={}_GT=train.pdf'.format(rdc_threshold,min_instances_slice), reg_line=False)
+            scatter_plots(three_v_two, 'rdc={}_mis={}_GT=test.pdf'.format(rdc_threshold,min_instances_slice), reg_line=False)
 
         results = {
             ind: get_error_totals(df, min_sup_eval, error_names) for ind, df in
@@ -312,8 +324,8 @@ def calc_itemsets_df(train, spn, min_sup, test = None, value_dict=None, test_use
     elif train_use == 'SPN':
         itemsets = _catch_up_SPN(spn, itemsets, value_dict, 'support_pred')
     itemsets['support_mean'] = itemsets[['support_pred', 'support']].mean(axis=1)
-    itemsets['difference'] = itemsets.apply(lambda x: np.round(x['support_pred'] - x['support'], 4), axis=1)
-    itemsets['difference_percent'] = itemsets.apply(lambda x: np.round((x['support_pred'] - x['support']) / x['support_pred'], 4), axis=1)
+    itemsets['difference'] = itemsets.support - itemsets.support_pred
+    itemsets['difference_percent'] = itemsets.difference / itemsets.support
     itemsets['length'] = itemsets['itemsets'].apply(lambda x: len(x))
     # itemsets = itemsets[itemsets['length'] >= 2]
     itemsets = itemsets.sort_values('support_mean', ascending=False)

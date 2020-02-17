@@ -118,11 +118,6 @@ def get_play_store(one_hot=True):
     df = df[~(df.Category == "1.9")]
 
     #feature engineering
-    # df.loc[df.Price == 0, 'Price'] = 0.
-    # df.loc[0 < df.Price <= 1, 'Price'] = 1.
-    # df.loc[1 < df.Price <= 3, 'Price'] = 3.
-    #parse $ strings round price to ceil
-    # df.Price = df.Price.apply(lambda x: np.ceil(float(x.split('$')[0])))
     def _parse(x):
         try:
             f = float(x.split('$')[-1])
@@ -143,7 +138,7 @@ def get_play_store(one_hot=True):
                         [1, 2, 3, 4, 5],
                         labels = ['1-2', '2-3', '3-4', '4-5'],
                         retbins=False, include_lowest=False).astype(str)
-    cols = ['Category', 'Price', 'Rating', 'Genres', 'Content Rating', 'Reviews', 'Installs']
+    cols = ['Category', 'Price', 'Rating', 'Content Rating', 'Reviews', 'Installs'] # 'Genres' viel identisch mit category
     # original data value_dict (tabular data!)
     value_dict = {i: ['discrete', dict(enumerate(df[c].value_counts().index))] for i, c in enumerate(cols)}
     parametric_types = [Categorical, Categorical, Categorical, Categorical, Categorical, Categorical, Categorical, Categorical]

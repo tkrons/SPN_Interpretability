@@ -13,7 +13,7 @@ from data import real_data
 from data import synthetic_data
 from simple_spn import spn_handler
 from spn.structure.leaves.parametric.Parametric import Categorical
-from spn_apriori.itemsets_utils import perf_comparison, scatter_plots, cross_eval, get_error_totals, calc_itemsets_df
+from spn_apriori.itemsets_utils import perf_comparison, difference_plot, diagonal_support_scatter, cross_eval, get_error_totals, calc_itemsets_df
 
 '''
 results: bigger support: SPN_apriori approaches normal apriori. smaller generalization error
@@ -210,7 +210,8 @@ if __name__ == '__main__':
 
     # includes excess and missing itemsets!!
     all_itemsets = calc_itemsets_df(transactional_df, spn, min_sup, value_dict=value_dict)
-    scatter_plots(all_itemsets)
+    difference_plot(all_itemsets, reg_line=False)
+    diagonal_support_scatter(all_itemsets)
 
     # evals = cross_eval(df, dataset_name, [0.01, 0.03, 0.05, 0.1, 0.2, 0.4], value_dict, recalc_spn=recalc_spn)
     # print(evals.to_string())

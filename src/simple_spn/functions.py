@@ -6,6 +6,7 @@ Created on 08.07.2019
 
 import warnings
 import numpy as np
+import pandas as pd
 
 from spn.structure.Base import Node, Sum, Product, Leaf
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian
@@ -400,7 +401,7 @@ def transform_dataset(df, feature_types=None):
     :param df: any df
     :param feature_types: list of column types of df: ['discrete', 'numeric']
     len(feature_types) == len(df.columns)
-    :return: transformed_df, dict to transform back, parametric types
+    :return: transformed_df, value_dict (dict to transform back), parametric types
     """
     if feature_types is None: feature_types = get_feature_types_from_dataset(df)
     
@@ -433,7 +434,8 @@ def get_feature_types_from_dataset(df):
     for col_name in df.columns:
         if df[col_name].dtype == np.dtype(np.float64).type:
             feature_types.append("numeric")
-        elif df[col_name].dtype == np.dtype(np.int64).type:
+        # elif df[col_name].dtype == np.dtype(np.int64).type or df[col_name].dtype :
+        elif np.issubdtype(df[col_name].dtype, np.integer):
             n_unique_vals = len(df[col_name].unique())
             if n_unique_vals < 30:
                 feature_types.append("discrete")
@@ -446,6 +448,8 @@ def get_feature_types_from_dataset(df):
             feature_types.append("discrete")
         elif df[col_name].dtype == np.dtype(np.bool).type:
             feature_types.append("discrete")
+        elif pd.CategoricalDtype.is_dtype(df[col_name]):
+            feature_types.append('discrete')
         else:
             raise Exception("Unknown dtype: " + str(df[col_name].dtype))  
     return feature_types
