@@ -38,7 +38,7 @@ print(cross_eval_hyperparams.to_string())
 cross_eval_hyperparams.to_csv('cross_eval_hyper.csv', sep=',')
 
 error_to_use = 'MAE'
-which_comparison = 'spn_vs_test'
+which_comparison = 'spn_vs_train'
 fig, axes = plt.subplots(int(np.ceil(len(min_sup_range) / 3)), 3, figsize=(12,8),
                          sharex=True, sharey=True)
 for i, min_sup in enumerate(min_sup_range):
@@ -87,8 +87,6 @@ plt.title('MAE of SPN-apriori {}'.format(which_comparison))
 
 plt.savefig("../../_figures/{}_subplots_heatmap.pdf".format(which_comparison))
 plt.show()
-
-
 
 
     #

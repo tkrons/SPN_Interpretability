@@ -110,7 +110,6 @@ def get_adult_41_items(convert_tabular = False):
         return fn.transform_dataset(tabular)
 
 def get_play_store(one_hot=True):
-    #todo https://www.kaggle.com/lava18/google-play-store-apps
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/play_store/googleplaystore.csv"
     df = pd.read_table(path, sep=',')
     df.columns
@@ -131,8 +130,8 @@ def get_play_store(one_hot=True):
     df = df[df.Genres.isin(df.Genres.value_counts()[:25].index)]
     # df['Reviews'] =
     df.Reviews = pd.cut(df['Reviews'].astype(float),
-                        [-np.inf, 0, 10, 100, 1000, 1e4, 1e5, 1e6],
-                        labels = ['0', '<= 10', '<= 100', '<= 1000', '<= 10,000', '<= 100,000', '<= 1,000,000'],
+                        [-np.inf, 0, 10, 100, 1000, 1e4, 1e5, 1e6, 1e7, 1e8],
+                        labels = ['0', '1+', '10+', '100+', '1,000+', '10,000+', '100,000+', '1,000,000+', '10,000,000+'],
                         retbins=False, include_lowest=False).astype(str)
     df.Rating = pd.cut(df['Rating'].astype(float),
                         [1, 2, 3, 4, 5],
@@ -145,10 +144,10 @@ def get_play_store(one_hot=True):
     df = df[cols].dropna(axis=1, )
 
     #one hot data
-    onehot = pd.get_dummies(df[cols], prefix=cols, prefix_sep='=')
+    onehot = pd.get_dummies(df[cols], prefix=cols, prefix_sep=': ')
     # value_dict_onehot = {i:}
     parametric_types_onehot = get_feature_types_from_dataset(onehot)
-    _, value_dict_onehot, _ = fn.transform_dataset(onehot, ['discrete'] * len(onehot.columns))
+    one_hot, value_dict_onehot, _ = fn.transform_dataset(onehot, ['discrete'] * len(onehot.columns))
     return onehot, value_dict_onehot, parametric_types_onehot
 
 def get_movies_one_hot():

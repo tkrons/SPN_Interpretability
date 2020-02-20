@@ -57,27 +57,34 @@ def fpgrowth_wrapper_orange(transactional_df, min_sup, ):
         results.append((new_set, new_support))
     return pd.DataFrame(results, columns=['itemsets', 'support'])
 
-def simple_interpretable_rules(itemsets, top = 30,):
-    return _get_interpretable_best_lift_rules(association_rules(itemsets, metric='confidence', min_threshold=0.70), top = 20)
+def simple_interpretable_rules(itemsets, top=None):
+    return _get_interpretable_best_lift_rules(association_rules(itemsets, metric='confidence', min_threshold=0.70), top = top)
 
-def _get_interpretable_best_lift_rules(rules, top = 30, suffix=''):
+def _get_interpretable_best_lift_rules(rules, top, suffix=''):
     '''
-    :param rule_comparison_df: needs cols: [antecedent, consequent, lift]
+    :param rule_: needs cols: [antecedent, consequent, lift]
     :param suffix: suffix of the metric columns. If you have a df with both SPN and apriori metrics, you'll need this
     to specify which metrics to use for rule extraction. Default is empty string ('')
     :return:
     '''
+    assert rules['confidence' + suffix].min() >= 0.5
+    lift_s = rules['lift' + suffix]
+    # unit variance normalized
+    rules['norm_lift'] = (lift_s-lift_s.min()) / lift_s.std()
     def _rule_basic_score(row):
         len_ant, len_cons = len(row['antecedents']), len(row['consequents'])
         if len_cons != 1.:
             return 0. #dont want longer consequent for now
         conf = row['confidence' + suffix]
-        lift = row['lift'+suffix]
-        # lambd = [0.2, 0.3, 0.5] #lift = 50%, I = 50%
-        return conf * lift * 1/len_ant
+        lift = row['norm_lift']
+        X = [conf, lift, 1/len_ant]
+        W = [0.2, 0.4, 0.4]
+        return np.dot(X, W)
 
     rules['score'] = rules.apply(_rule_basic_score, axis=1)
-    return rules.sort_values('score', ascending=False,).head(top)
+    rules = rules.sort_values('score', ascending=False,)
+    return rules.head(top)
+
 
 def set_contains_x(itemset, x):
     '''Usage: rule_comparison.loc[rule_comparison.antecedents.apply(set_contains_x, args='Black')]'''
