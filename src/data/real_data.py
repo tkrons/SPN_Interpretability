@@ -11,7 +11,7 @@ import pandas as pd
 from simple_spn import functions as fn
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian, Bernoulli, Poisson
 from simple_spn.functions import get_feature_types_from_dataset
-from mlxtend.preprocessing import TransactionEncoder
+from mlxtend.preprocessing import TransactionEncoder, OnehotTransactions
 
 def get_real_data(name, **kwargs):
     '''wrapper to get data by name
@@ -20,8 +20,32 @@ def get_real_data(name, **kwargs):
     case = {'titanic': get_titanic,
             'T10I4D': get_T10I4D,
             'play_store': get_play_store,
-            'adult41': get_adult_41_items}
+            'adult41': get_adult_41_items,
+            'OnlineRetail': get_OnlineRetail}
     return case[name](**kwargs)
+
+def get_OnlineRetail():
+    '''This dataset is transformed from the Online Retail dataset, found at https://archive.ics.uci.edu/ml/datasets/ Online+Retail.
+    https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
+    '''
+    def __left_right_strip_once(x):
+        r = str(x).replace('\'', '', 1)
+        return r[::-1].replace('\'', '', 1)[::-1]
+    colnames = pd.read_excel('../../_data/OnlineRetail/OnlineRetailZZAtrributes.xlsx',
+                             converters={0: __left_right_strip_once}, header=None, index_col=1).values.reshape(-1)
+    with open('../../_data/OnlineRetail/OnlineRetailZZ.txt', 'r+') as f:
+        # onehot = OnehotTransactions().fit_transform(f.read().splitlines())
+        transactions = f.read().splitlines()
+        one_hot = np.zeros([len(transactions), len(colnames)], dtype=bool)
+        for ind, t in enumerate(transactions):
+            if t != '':
+                items = t.strip().split(' ')
+                for item in items:
+                    one_hot[ind, int(item) - 1] = True
+    df = pd.DataFrame(one_hot, columns=colnames, dtype=int)
+    value_dict = {i: ['discrete', c, {0: 0, 1: 1}] for i,c in enumerate(df.columns)}
+    parametric_types = [Categorical] * len(df.columns)
+    return df, value_dict, parametric_types
 
 def get_T10I4D(max_num=100, max_insts=10000):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/itemset/T10I4D100K.dat"
@@ -31,6 +55,8 @@ def get_T10I4D(max_num=100, max_insts=10000):
     all_vals = []
     for _ in range(max_insts):
         line = file.readline()
+
+
         
         vals = set()
         for str_num in line.split(" ")[:-1]:
