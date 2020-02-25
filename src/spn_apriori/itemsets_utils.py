@@ -289,7 +289,7 @@ def calc_itemsets_df(train, spn, min_sup, test = None, value_dict=None, test_use
 
     print('==================== Calculating Itemsets ==============')
     if train_use == 'SPN':
-        PRED = spn_apriori(train, low_memory=False, min_support=min_sup, spn=spn, value_dict=value_dict, use_colnames=True, )
+        PRED = spn_apriori(train, min_support=min_sup, spn=spn, value_dict=value_dict, use_colnames=True, )
     elif train_use == 'apriori':
         # mlxtend fpgrowth completely equal
         PRED = mlxtend_fpgrowth(train, min_sup, use_colnames=True)

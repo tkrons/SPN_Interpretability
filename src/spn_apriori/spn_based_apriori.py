@@ -156,8 +156,7 @@ def generate_rules_apriori(
         print("Rule generation terminated.\n")
 
 
-def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_len=None, verbose=0,
-                low_memory=False, ):
+def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_len=None, verbose=0, ):
     """Get frequent itemsets from a one-hot DataFrame
 
     Parameters
@@ -198,15 +197,7 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
       possible itemsets lengths (under the apriori condition) are evaluated.
 
     verbose : int (default: 0)
-      Shows the number of iterations if >= 1 and `low_memory` is `True`. If
-      >=1 and `low_memory` is `False`, shows the number of combinations.
-
-    low_memory : bool (default: False)
-      If `True`, uses an iterator to search for combinations above
-      `min_support`.
-      Note that while `low_memory=True` should only be used for large dataset
-      if memory resources are limited, because this implementation is approx.
-      3-6x slower than the default.
+      Shows the number of iterations if >= 1 and
 
 
     Returns
@@ -269,7 +260,7 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
                 # rang[col] = 1
                 val_string = df.columns[col]
                 if spn_onehot_encoded:
-                    rang[col] = 1
+                    rang[col] = 1.
                 else: #translate to tabular spn indices:
                     i, col_name, val = search_value_dict(val_string, value_dict)
                     if np.isnan(rang[i]): # still unassigned
@@ -280,14 +271,17 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
         impossible_sets = set([i for i, rang in enumerate(ranges) if rang == 'IMPOSSIBLE SET'])
         possible = set(range(len(ranges))) - impossible_sets
         if len(possible) > 0:
-            probs = fn.probs_spflow(spn, np.array([rang for i, rang in enumerate(ranges) if i in possible]))
-            probs = np.nditer(probs)
+            ranges = np.array([rang for i, rang in enumerate(ranges) if i in possible])
+            probs = fn.probs_iter_spflow(spn, ranges)
+            # probs = fn.probs_spflow(spn, np.array([rang for i, rang in enumerate(ranges) if i in possible]))
+            # probs = np.nditer(probs)
         res = [np.NaN] * len(ranges)
         for i, _ in enumerate(ranges):
             if i in sorted(list(possible)):
                 res[i] = next(probs)
             else:
                 res[i] = 0.
+        assert len(res) == len(itemsets)
         return np.array(res)
 
 
@@ -331,65 +325,36 @@ def spn_apriori(df, spn, value_dict, min_support=0.5, use_colnames=False, max_le
     all_ones = np.ones((int(rows_count), 1))
 
     while max_itemset and max_itemset < (max_len or float('inf')):
+        #always the low_memory version
+
         next_max_itemset = max_itemset + 1
         combin = generate_new_combinations(itemset_dict[max_itemset])
 
-        # With exceptionally large datasets, the matrix operations can use a
-        # substantial amount of memory. For low memory applications or large
-        # datasets, set `low_memory=True` to use a slower but more memory-
-        # efficient implementation.
-        # if low_memory:
-        #     frequent_items = []
-        #     frequent_items_support = []
-        #     if is_sparse:
-        #         all_ones = np.ones((X.shape[0], next_max_itemset))
-        #     for c in combin:
-        #         if verbose:
-        #             iter_count += 1
-        #             print('\rIteration: %d | Sampling itemset size %d' %
-        #                   (iter_count, next_max_itemset), end="")
-        #         if is_sparse:
-        #             together = np.all(X[:, c] == all_ones, axis=1)
-        #         else:
-        #             together = X[:, c].all(axis=1)
-        #         support = together.sum() / rows_count
-        #         if support >= min_support:
-        #             frequent_items.append(c)
-        #             frequent_items_support.append(support)
-        #
-        #     if frequent_items:
-        #         itemset_dict[next_max_itemset] = np.array(frequent_items)
-        #         support_dict[next_max_itemset] = \
-        #             np.array(frequent_items_support)
-        #         max_itemset = next_max_itemset
-        #     else:
-        #         break
-        if not low_memory:
-            combin = np.array(list(combin))
+        combin = np.array(list(combin))
 
-            if combin.size == 0:
-                break
-            if verbose:
-                print(
-                    '\rProcessing %d combinations | Sampling itemset size %d' %
-                    (combin.size, next_max_itemset), end="")
+        if combin.size == 0:
+            break
+        if verbose:
+            print(
+                '\rProcessing %d combinations | Sampling itemset size %d' %
+                (combin.size, next_max_itemset), end="")
 
-            if is_sparse: #never sparse
-                _bools = X[:, combin[:, 0]] == all_ones
-                for n in range(1, combin.shape[1]):
-                    _bools = _bools & (X[:, combin[:, n]] == all_ones)
-            else:
-                _bools = np.all(X[:, combin], axis=2)
-            #_bools.shape: [n_transactions, current_combinations]
-            support = _support(df, itemsets=combin, n_columns=len(df.columns), spn = spn, value_dict= value_dict, _x=np.array(_bools), _n_rows=rows_count,)
-            _mask = (support >= min_support).reshape(-1)
-            if any(_mask):
-                itemset_dict[next_max_itemset] = np.array(combin[_mask])
-                support_dict[next_max_itemset] = np.array(support[_mask])
-                max_itemset = next_max_itemset
-            else:
-                # Exit condition
-                break
+        if is_sparse: #never sparse
+            _bools = X[:, combin[:, 0]] == all_ones
+            for n in range(1, combin.shape[1]):
+                _bools = _bools & (X[:, combin[:, n]] == all_ones)
+        else:
+            _bools = np.all(X[:, combin], axis=2)
+        #_bools.shape: [n_transactions, current_combinations]
+        support = _support(df, itemsets=combin, n_columns=len(df.columns), spn = spn, value_dict= value_dict, _x=np.array(_bools), _n_rows=rows_count,)
+        _mask = (support >= min_support).reshape(-1)
+        if any(_mask):
+            itemset_dict[next_max_itemset] = np.array(combin[_mask])
+            support_dict[next_max_itemset] = np.array(support[_mask])
+            max_itemset = next_max_itemset
+        else:
+            # Exit condition
+            break
 
     all_res = []
     for k in sorted(itemset_dict):
