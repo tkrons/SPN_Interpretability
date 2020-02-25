@@ -48,7 +48,10 @@ def prob_spflow(spn, inst):
 def probs_spflow(spn, data):
     return Inference.likelihood(spn, data, dtype=np.float64).reshape(len(data))  
 
-
+def probs_iter_spflow(spn, data): #todo is the performance/RAM consumption better?
+    for i in range(len(data)):
+        yield prob_spflow(spn, data[i])
+    raise StopIteration()
 
 '''
 ############################
@@ -401,7 +404,10 @@ def transform_dataset(df, feature_types=None):
     :param df: any df
     :param feature_types: list of column types of df: ['discrete', 'numeric']
     len(feature_types) == len(df.columns)
-    :return: transformed_df, value_dict (dict to transform back), parametric types
+    :return: transformed_df,
+    value_dict (dict to transform back):
+    {i: [feature_type ('discrete'), col_name, {spn_val: source_val}]}
+    parametric types
     """
     if feature_types is None: feature_types = get_feature_types_from_dataset(df)
     
@@ -410,7 +416,8 @@ def transform_dataset(df, feature_types=None):
     for i, col_name in enumerate(df.columns):
         
         if feature_types[i] == "discrete":
-            if df[col_name].dtype in [np.dtype(np.int64).type, np.bool]:
+            # if df[col_name].dtype in [np.dtype(np.int64).type, np.bool, ]:
+            if np.issubdtype(df[col_name].dtype, np.integer) or np.issubdtype(df[col_name].dtype, np.bool8):
                 unq_vals = sorted(df[col_name].unique())
             else:
                 unq_vals = df[col_name].unique()
