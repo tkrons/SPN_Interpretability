@@ -12,6 +12,7 @@ from simple_spn import functions as fn
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian, Bernoulli, Poisson
 from simple_spn.functions import get_feature_types_from_dataset
 from mlxtend.preprocessing import TransactionEncoder, OnehotTransactions
+from sklearn.preprocessing import KBinsDiscretizer
 
 def get_real_data(name, **kwargs):
     '''wrapper to get data by name
@@ -21,10 +22,68 @@ def get_real_data(name, **kwargs):
             'T10I4D': get_T10I4D,
             'play_store': get_play_store,
             'adult41': get_adult_41_items,
-            'OnlineRetail': get_OnlineRetail}
+            'OnlineRetail': get_OnlineRetail,
+            'Ecommerce': get_Ecommerce,
+            'RecordLink': get_RecordLink,
+            'adult_one_hot': get_adult_one_hot,}
     return case[name](**kwargs)
 
-def get_OnlineRetail():
+def get_lending(only_n_rows = None, seed = None):
+    '''
+    https://www.kaggle.com/wendykan/lending-club-loan-data
+    '''
+    discretizer = KBinsDiscretizer(encode='ordinal', strategy='quantile')
+
+
+def get_RecordLink(only_n_rows = None, seed =None):
+    ''' https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
+    '''
+    colnames = []
+    for orig_col  in ['cmp_fname_c1','cmp_fname_c2', 'cmp_lname_c1', 'cmp_lname_c2', 'cmp_sex', 'cmp_bd', 'cmp_bm', 'cmp_by', 'cmp_plz']:
+        colnames = colnames + [orig_col + val for val in [' = no', ' = yes', ' = uncertain']]
+    colnames = colnames + ['is_match = no', 'is_match = yes']
+    with open('../../_data/RecordLink/RecordLink.txt', 'r+',) as f:
+        transactions = f.read().splitlines()
+        one_hot = np.zeros([len(transactions), len(colnames)], dtype=bool)
+        for ind, t in enumerate(transactions):
+            if t != '':
+                items = t.strip().split(' ')
+                for item in items:
+                    one_hot[ind, int(item)] = True
+
+    df = pd.DataFrame(one_hot, columns=colnames, dtype=int)
+    df = _shorten_df(df, only_n_rows, seed)
+    value_dict = {i: ['discrete', c, {0: 0, 1: 1}] for i, c in enumerate(df.columns)}
+    parametric_types = [Categorical] * len(df.columns)
+    return df, value_dict, parametric_types
+
+
+
+def get_Ecommerce(only_n_rows = None, seed =None):
+    '''Data Set Information:
+    This is a transnational data set which contains all the transactions occurring between 01/12/2010 and 09/12/2011 for a UK-based and registered non-store online retail.The company mainly sells unique all-occasion gifts. Many customers of the company are wholesalers.
+    InvoiceNo: Invoice number. Nominal, a 6-digit integral number uniquely assigned to each transaction. If this code starts with letter 'c', it indicates a cancellation.
+    StockCode: Product (item) code. Nominal, a 5-digit integral number uniquely assigned to each distinct product.
+    Description: Product (item) name. Nominal.
+    Quantity: The quantities of each product (item) per transaction. Numeric.
+    InvoiceDate: Invice Date and time. Numeric, the day and time when each transaction was generated.
+    UnitPrice: Unit price. Numeric, Product price per unit in sterling.
+    CustomerID: Customer number. Nominal, a 5-digit integral number uniquely assigned to each customer.
+    Country: Country name. Nominal, the name of the country where each customer resides.'''
+    with open('../../_data/Ecommerce/Ecommerce.xlsx', 'rb',) as f:
+        source_df = pd.read_excel(f, usecols = [0,1,2,5,6,7],)
+        # transform transactional (groupby customers)
+    dummies = pd.get_dummies(source_df.set_index('CustomerID')['Description'], )
+    transactions = dummies.reset_index().groupby('CustomerID').max().reset_index().drop(columns=['CustomerID'])
+    colnames = source_df['Description'].unique().tolist()
+
+    transactions = _shorten_df(transactions, only_n_rows, seed)
+
+    value_dict = {i: ['discrete', c, {0: 0, 1: 1}] for i, c in enumerate(transactions.columns)}
+    parametric_types = [Categorical] * len(transactions.columns)
+    return transactions, value_dict, parametric_types
+
+def get_OnlineRetail(only_n_rows = None, seed = None):
     '''This dataset is transformed from the Online Retail dataset, found at https://archive.ics.uci.edu/ml/datasets/ Online+Retail.
     https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
     '''
@@ -45,6 +104,7 @@ def get_OnlineRetail():
     df = pd.DataFrame(one_hot, columns=colnames, dtype=int)
     value_dict = {i: ['discrete', c, {0: 0, 1: 1}] for i,c in enumerate(df.columns)}
     parametric_types = [Categorical] * len(df.columns)
+    df = _shorten_df(df, only_n_rows, seed)
     return df, value_dict, parametric_types
 
 def get_T10I4D(max_num=100, max_insts=10000):
@@ -77,7 +137,25 @@ def get_T10I4D(max_num=100, max_insts=10000):
     
     return np.array(insts), [Categorical]*(max_val)
 
-
+def _shorten_df(data, only_n_rows, seed=None):
+    if only_n_rows and only_n_rows < len(data):
+        np.random.seed(seed)
+        sample_indices = np.random.choice(range(len(data)), only_n_rows, replace=False)
+        if isinstance(data, pd.DataFrame):
+            data = data.iloc[sample_indices]
+        else:
+            raise ValueError()
+        # elif isinstance(data, np.ndarray):
+        #     data = data[sample_indices]
+        # elif isinstance(data, list):
+        #     data = [data[i] for i in sample_indices]
+        # else:
+        #     raise ValueError(type(data))
+    # remove non existing items (otherwise breaks SPN)
+    for col in data.columns:
+        if len(set(data.loc[data[col].notna(), col].unique())) <= 1:
+            data.drop(col, inplace=True, axis=1)
+    return data
 
 def get_titanic(col_names=None):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/titanic/train.csv"
@@ -94,18 +172,32 @@ def get_titanic(col_names=None):
 
     return fn.transform_dataset(df)
 
-def get_adult_one_hot(): #todo do own data cleaning (reproducavbility)
+def get_adult_one_hot(only_n_rows=None, seed=None): #todo do own data cleaning (reproducability)
     '''
-    UCI adult dataset full
+    UCI adult dataset
     :return:
     '''
     columns = ['age', 'workclass', 'fnlwgt', 'education', 'education-num', 'marital-status', 'occupation', 'relationship',
-               'race', 'sex', 'capital-gain', 'capital-loss', 'hours-per-week', 'native-country']
-    path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/adult/adult.dat"
-    df = pd.read_csv(path, columns=columns)
+               'race', 'sex', 'capital-gain', 'capital-loss', 'hours-per-week', 'native-country', 'income']
+    path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/adult/adult.data"
+    df = pd.read_csv(path, names=columns, na_values='?', index_col=None, skipinitialspace=True)
+
     df.isnull().sum()
-    df.dropna(inplace=True)
-    return df
+    df = df.drop(columns=['fnlwgt', 'capital-gain', 'capital-loss', 'education-num'])
+    df = df.dropna() # drop NaNs in workclass, occupation and native country
+    df.age = pd.cut(df['age'], [0, 35, 60, np.inf],
+                       labels=['young', 'middle-aged', 'old'],
+                       retbins=False, include_lowest=True).astype(str)
+    df['hours-per-week'] = pd.cut(df['hours-per-week'], [0, 35, 45, np.inf],
+                                  labels=['< 35 hours', '35-45 hours', '> 45 hours'])
+    # filter rare countries
+    counts = df['native-country'].value_counts()
+    df =df[df['native-country'].isin(counts.index[counts > 20])]
+    # filter rare occupations
+    counts = df.occupation.value_counts()
+    df = df[df.occupation.isin(counts.index[counts > 20])]
+    one_hot = pd.get_dummies(df, prefix='', prefix_sep='')
+    return fn.transform_dataset(one_hot)
 
 def get_adult_41_items(convert_tabular = False):
     '''
@@ -175,9 +267,3 @@ def get_play_store(one_hot=True):
     parametric_types_onehot = get_feature_types_from_dataset(onehot)
     one_hot, value_dict_onehot, _ = fn.transform_dataset(onehot, ['discrete'] * len(onehot.columns))
     return onehot, value_dict_onehot, parametric_types_onehot
-
-def get_movies_one_hot():
-    #todo https://www.kaggle.com/tmdb/tmdb-movie-metadata
-    # which actors make movies successful?
-    # problem: needs lot of transformations
-    pass
