@@ -33,7 +33,7 @@ def get_lending(only_n_rows = None, seed = None):
     https://www.kaggle.com/wendykan/lending-club-loan-data
     '''
     discretizer = KBinsDiscretizer(encode='ordinal', strategy='quantile')
-
+    #todo lending data?
 
 def get_RecordLink(only_n_rows = None, seed =None):
     ''' https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
@@ -86,6 +86,8 @@ def get_Ecommerce(only_n_rows = None, seed =None):
 def get_OnlineRetail(only_n_rows = None, seed = None):
     '''This dataset is transformed from the Online Retail dataset, found at https://archive.ics.uci.edu/ml/datasets/ Online+Retail.
     https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
+
+    Insgesamt eher uninteressant, '&' ist das häufigste 'item' ...
     '''
     def __left_right_strip_once(x):
         r = str(x).replace('\'', '', 1)
@@ -182,20 +184,24 @@ def get_adult_one_hot(only_n_rows=None, seed=None): #todo do own data cleaning (
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/adult/adult.data"
     df = pd.read_csv(path, names=columns, na_values='?', index_col=None, skipinitialspace=True)
 
-    df.isnull().sum()
+    df['marital-status'].replace(['Married-AF-spouse', 'Married-civ-spouse', 'Married-spouse-absent'], 'Married',
+                                 inplace=True)
     df = df.drop(columns=['fnlwgt', 'capital-gain', 'capital-loss', 'education-num'])
     df = df.dropna() # drop NaNs in workclass, occupation and native country
     df.age = pd.cut(df['age'], [0, 35, 60, np.inf],
                        labels=['young', 'middle-aged', 'old'],
                        retbins=False, include_lowest=True).astype(str)
+
     df['hours-per-week'] = pd.cut(df['hours-per-week'], [0, 35, 45, np.inf],
-                                  labels=['< 35 hours', '35-45 hours', '> 45 hours'])
-    # filter rare countries
-    counts = df['native-country'].value_counts()
-    df =df[df['native-country'].isin(counts.index[counts > 20])]
-    # filter rare occupations
-    counts = df.occupation.value_counts()
-    df = df[df.occupation.isin(counts.index[counts > 20])]
+                                  labels=['work hours < 35', 'work hours 35-45', 'work hours > 45'])
+    # # filter rare countries
+    # counts = df['native-country'].value_counts()
+    # df =df[df['native-country'].isin(counts.index[counts > 20])]
+    # # filter rare occupations
+    # df = df[df.occupation.isin(counts.index[counts > 20])]
+
+    # only use 51? items
+    df.drop(columns=['hours-per-week', 'native-country', 'occupation'], inplace=True)
     one_hot = pd.get_dummies(df, prefix='', prefix_sep='')
     return fn.transform_dataset(one_hot)
 
