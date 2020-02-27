@@ -32,14 +32,14 @@ def learn_parametric_spn(data, parametric_types, rdc_threshold=0.3, min_instance
     return spn, const_time
 
 
-def create_parametric_spns(data, parametric_types, dataset_name, rdc_thresholds=[0.3], min_instances_slices=[0.05], value_dict=None, save=True, silence_warnings=False):
+def create_parametric_spns(data, parametric_types, dataset_name, rdc_thresholds=[0.3], min_instances_slices=[0.05], value_dict=None, save=True, silence_warnings=False, nrows=None):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for rdc_threshold in rdc_thresholds:
             for min_instances_slice in min_instances_slices:
                 spn, const_time = learn_parametric_spn(data, parametric_types, rdc_threshold, min_instances_slice)
                 if save:
-                    save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict)
+                    save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict, nrows,)
                 else:
                     return spn, value_dict, parametric_types
 
@@ -56,14 +56,20 @@ def exist_spn(dataset_name, rdc_threshold, min_instances_slice):
 
 
 
-def save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict=None):
+def save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict=None, nrows=None,):
     if value_dict is None: fn.generate_adhoc_value_dict(spn)
-    io.save([spn, value_dict, const_time], "rdc=" + str(rdc_threshold) + "_mis=" + str(min_instances_slice), dataset_name, loc="_spns")
+    name = "rdc=" + str(rdc_threshold) + "_mis=" + str(min_instances_slice)
+    if nrows:
+        name = name + "_n=" + np.format_float_scientific(nrows, precision=0, trim='-')
+    io.save([spn, value_dict, const_time], name, dataset_name, loc="_spns")
 
 
 
-def load_spn(dataset_name, rdc_threshold, min_instances_slice):
-    return io.load("rdc=" + str(rdc_threshold) + "_mis=" + str(min_instances_slice), dataset_name, "_spns")
+def load_spn(dataset_name, rdc_threshold, min_instances_slice, nrows = None):
+    fname = "rdc=" + str(rdc_threshold) + "_mis=" + str(min_instances_slice)
+    if nrows:
+        fname = fname + '_n=' + np.format_float_scientific(nrows, precision=0, trim='-')
+    return io.load(fname, dataset_name, "_spns")
 
 
 

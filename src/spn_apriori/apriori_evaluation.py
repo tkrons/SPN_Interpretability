@@ -74,7 +74,8 @@ def spn_hyperparam_opt(df, value_dict, test_frac = 0.5):
                 spn_handler.create_parametric_spns(train.values, parametric_types, dataset_name, value_dict=value_dict,
                                                    rdc_thresholds=[rdc_threshold],
                                                    min_instances_slices=[min_instances_slice],
-                                                   silence_warnings=True)
+                                                   silence_warnings=True,
+                                                   nrows=only_n_rows,)
             spn, value_dict, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
             num_nodes = len(get_nodes_by_type(spn, Node))
             row['num_nodes'] = num_nodes
@@ -87,7 +88,7 @@ def spn_hyperparam_opt(df, value_dict, test_frac = 0.5):
     return spn_hyperparam_results
 
 
-def plot_error_brackets(itemsets, error_names, ylog=False): #todo discuss MRE = +inf problem and fix, plots are bad
+def plot_error_brackets(itemsets, error_names, dataset_name, ylog=False,): #todo discuss MRE = +inf problem and fix, plots are bad
     # bracket wise analysis
     # brackets = [i for i in np.linspace(0, 1, 11,) if i < both.support.max()]
     print('=============== Error Metrics ==================')
@@ -144,13 +145,16 @@ def plot_error_brackets(itemsets, error_names, ylog=False): #todo discuss MRE = 
 
 if __name__ == '__main__':
     ## PARAMETERS ##
-    dataset_name = "play_store"
+    dataset_name = "adult_one_hot"
     only_n_rows = None
+    
     min_sup = 0.01
     # min_sup = 0 oder nah an null lässt PC einfrieren..
     rdc_threshold, min_instances_slice = 0.1, 0.01
     recalc_spn = True
     benchmark = False
+
+
     spn_hyperparam_grid_search = False
     # bug support_pred=1.0 @ seed(893) minsup10% 50 rows
     # seed = np.random.randint(1000)
@@ -171,14 +175,10 @@ if __name__ == '__main__':
         df, value_dict, parametric_types = real_data.get_adult_41_items(convert_tabular=True)
         #get transactions for normal apriori
         transactional_df, _, _ = real_data.get_adult_41_items()
-    elif dataset_name == 'play_store':
-        df, value_dict, parametric_types = real_data.get_play_store()
+    else:
+        df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows = only_n_rows)
         transactional_df = df
 
-    if only_n_rows and only_n_rows < len(df):
-        sample_indices = np.random.random_integers(0, len(df), only_n_rows)
-        df = df.iloc[sample_indices]
-        transactional_df = transactional_df.iloc[sample_indices]
 
     # transactional overview
     transactions = transactional_df.apply(lambda x: set(compress(x.index, x)) or 'empty transaction', axis=1)
@@ -196,10 +196,11 @@ if __name__ == '__main__':
         spn_handler.create_parametric_spns(df.values, parametric_types, dataset_name, value_dict=value_dict,
                                            rdc_thresholds=[rdc_threshold],
                                            min_instances_slices=[min_instances_slice],
-                                           silence_warnings=True)
+                                           silence_warnings=True,
+                                           nrows=only_n_rows)
 
     # Load SPN
-    spn, _, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
+    spn, _, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice, nrows=only_n_rows)
 
     if benchmark:
         perf_comparison(transactional_df, min_sup, spn, value_dict)
@@ -229,6 +230,6 @@ if __name__ == '__main__':
 
     # with warnings.catch_warnings():
     #     warnings.simplefilter('error')
-    plot_error_brackets(all_itemsets, ['AE', 'MAE', 'MRE'],)
+    plot_error_brackets(all_itemsets, ['AE', 'MAE', 'MRE'], dataset_name)
 
     print('AE: {}\tMAE: {}\tSE: {}\tMSE: {}'.format(totalAE, totalMAE, totalSE, totalMSE))

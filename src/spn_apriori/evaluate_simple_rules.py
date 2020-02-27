@@ -15,12 +15,12 @@ from spn.structure.leaves.parametric.Parametric import Categorical
 from spn_apriori.itemsets_utils import simple_interpretable_rules, _get_interpretable_best_lift_rules, calc_itemsets_df
 import simple_spn.functions as fn
 
-dataset_name = 'play_store'
+dataset_name = 'adult_one_hot'
 rdc_threshold, min_instances_slice = 0.1, 0.05
-min_sup=0.01
+min_sup=0.1
 recalc_spn = True
-
-df, value_dict, parametric_types = real_data.get_real_data(dataset_name)
+only_n_rows = None
+df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows=only_n_rows)
 
 
 # SPN generation
@@ -31,7 +31,11 @@ if recalc_spn or not spn_handler.exist_spn(dataset_name, rdc_threshold, min_inst
     spn_handler.create_parametric_spns(df.values, parametric_types, dataset_name, value_dict=value_dict,
                                        rdc_thresholds=[rdc_threshold],
                                        min_instances_slices=[min_instances_slice],
-                                       silence_warnings=True)
+                                       silence_warnings=True,
+                                       nrows=only_n_rows)
+
+
+
 
 # Load SPN
 spn, value_dict, parametric_types = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)

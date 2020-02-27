@@ -107,7 +107,7 @@ if __name__ == '__main__':
     pass
 
 
-def difference_plot(itemsets, fname=None, reg_line=True):
+def difference_plot(itemsets, fname=None, reg_line=True, dataset_name=None):
     '''
     :param itemsets: itemsets with support (GT) and support_pred (PRED)
     :param GT_name: type of GT data, either 'test' or 'train'
@@ -146,12 +146,12 @@ def difference_plot(itemsets, fname=None, reg_line=True):
     plt.ylabel('residual (support - support_pred)')
     if fname:
         plt.title(fname.split('.pdf')[0])
-        plt.savefig('../../_figures/{}'.format('residuals_' + fname))
+        plt.savefig('../../_figures/{}/{}'.format(dataset_name, 'residuals_' + fname))
     # both = both.drop(columns=['support_mean'])
     # plt.savefig('../../_figures/{}'.format('difference_scatter_' + fname))
     plt.show()
 
-def diagonal_support_scatter(itemsets, fname=None,):
+def diagonal_support_scatter(itemsets, fname=None, dataset_name=None):
     # diagonal scatterplot y = spn_ap x = normal_ap
     #todo 'reverse' log to visualize whole value range
     # https://stackoverflow.com/questions/5395554/custom-axis-scales-reverse-logarithmic
@@ -183,15 +183,15 @@ def diagonal_support_scatter(itemsets, fname=None,):
     plt.ylabel('support_pred')
     # plt.tight_layout()
     if fname:
-        plt.savefig('../../_figures/{}'.format('scatter_support_deviation_' + fname))
+        plt.savefig('../../_figures/{}/{}'.format(dataset_name, 'scatter_support_deviation_' + fname))
     plt.show()
 
 
 
-def scatter_plots(itemsets, fname=None, reg_line=True):
+def scatter_plots(itemsets, fname=None, reg_line=True, dataset_name=None):
     '''wrapper for multiple evaluation plots'''
-    difference_plot(itemsets, fname, reg_line)
-    diagonal_support_scatter(itemsets, fname)
+    difference_plot(itemsets, fname, reg_line, dataset_name=dataset_name)
+    diagonal_support_scatter(itemsets, fname, dataset_name=dataset_name)
 
 def cross_eval(transactional_df, dataset_name, min_sup_steps, value_dict,
                recalc_spn = False, rdc_threshold = 0.1, min_instances_slice = 0.05):
@@ -221,9 +221,9 @@ def cross_eval(transactional_df, dataset_name, min_sup_steps, value_dict,
 
         if min_sup_eval == min(min_sup_steps):
             # do scatter plots for spn_vs_train and spn_vs_test
-            scatter_plots(one_v_two, 'train_vs_test.pdf', reg_line=False)
-            scatter_plots(three_v_one, 'rdc={}_mis={}_GT=train.pdf'.format(rdc_threshold,min_instances_slice), reg_line=False)
-            scatter_plots(three_v_two, 'rdc={}_mis={}_GT=test.pdf'.format(rdc_threshold,min_instances_slice), reg_line=False)
+            scatter_plots(one_v_two, 'train_vs_test.pdf', reg_line=False, dataset_name=dataset_name)
+            scatter_plots(three_v_one, 'rdc={}_mis={}_GT=train.pdf'.format(rdc_threshold,min_instances_slice), reg_line=False, dataset_name=dataset_name)
+            scatter_plots(three_v_two, 'rdc={}_mis={}_GT=test.pdf'.format(rdc_threshold,min_instances_slice), reg_line=False, dataset_name=dataset_name)
 
         results = {
             ind: get_error_totals(df, min_sup_eval, error_names) for ind, df in

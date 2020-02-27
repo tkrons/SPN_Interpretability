@@ -12,7 +12,7 @@ from simple_spn import spn_handler
 from spn_apriori.itemsets_utils import cross_eval
 from spn.structure.leaves.parametric.Parametric import Categorical
 
-dataset_name = 'UCI'
+dataset_name = 'adult_one_hot'
 recalc_spn = False
 
 rdc_range = [0.1, 0.2, 0.3]
@@ -21,6 +21,8 @@ min_sup_range = [0.01, 0.03, 0.05, 0.1, 0.2, 0.4]
 
 if dataset_name == 'UCI':
     transactional_df, value_dict, parametric_types = real_data.get_adult_41_items()
+else:
+    transactional_df, value_dict, parametric_types = real_data.get_real_data(dataset_name)
 
 # eval different hyper params
 cross_eval_hyperparams = []
