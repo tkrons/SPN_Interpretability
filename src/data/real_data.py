@@ -25,15 +25,44 @@ def get_real_data(name, **kwargs):
             'OnlineRetail': get_OnlineRetail,
             'Ecommerce': get_Ecommerce,
             'RecordLink': get_RecordLink,
-            'adult_one_hot': get_adult_one_hot,}
+            'adult_one_hot': get_adult_one_hot,
+            'lending': get_lending,
+            }
     return case[name](**kwargs)
 
 def get_lending(only_n_rows = None, seed = None):
     '''
     https://www.kaggle.com/wendykan/lending-club-loan-data
+    about 2.200.000 rows,
     '''
-    discretizer = KBinsDiscretizer(encode='ordinal', strategy='quantile')
-    #todo lending data?
+    # discretizer = KBinsDiscretizer(n_bins=3, encode='onehot-dense', strategy='quantile')
+
+    with open('../../_data/lending/loan.csv', 'r', encoding='latin-1') as f:
+        used_cols = ['loan_amnt', 'funded_amnt', 'loan_status', 'term', 'purpose', 'int_rate', 'grade', 'emp_length',
+                    'home_ownership', 'annual_inc']
+        df = pd.read_csv(f, usecols=used_cols)
+        df = _shorten_df(df, only_n_rows, seed=seed)
+    df = df[~df.loan_status.isin(['Does not meet the credit policy. Status:Charged Off',
+                                 'Does not meet the credit policy. Status:Fully Paid'])]
+    df.loan_status.replace(['Late (31-120 days)', 'Late (16-30 days)', 'In Grace Period'], 'Late', inplace=True)
+    df.emp_length.replace([str(i) + ' years' for i in range(2, 10)], '1-10 years', inplace=True)
+    df.dropna(inplace=True)
+    numeric_cols = df.columns[~(df.dtypes == np.object)]
+    # df[numeric_cols] = discretizer.fit_transform(df[numeric_cols])
+
+    for c in numeric_cols:
+        quantiles = np.round(df[c].quantile([0.25, 0.5, 0.75])).astype(int).tolist()
+        q_labels = [x.format(low=quantiles[0], mid=quantiles[1], high=quantiles[2]) for x in ['0 < {low}', '{low} < {mid}', '{mid} < {high}', '{high} < inf']]
+        df[c] = pd.cut(df[c],
+                       bins = [-np.inf] + quantiles + [np.inf],
+                       labels = q_labels,
+                       ).astype(str)
+    df.emp_length.replace([''])
+    #remove rare items
+    df = df[~df.home_ownership.isin(['OTHER', 'ANY'])]
+
+    one_hot = pd.get_dummies(df, )
+    return fn.transform_dataset(one_hot)
 
 def get_RecordLink(only_n_rows = None, seed =None):
     ''' https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
