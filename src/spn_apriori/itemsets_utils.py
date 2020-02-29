@@ -2,6 +2,7 @@ from time import perf_counter
 
 import numpy as np
 import pandas as pd
+import os
 from matplotlib import pyplot as plt
 from mlxtend.frequent_patterns import apriori as mlxtend_apriori, fpgrowth as mlxtend_fpgrowth, apriori
 from mlxtend.frequent_patterns import association_rules
@@ -146,7 +147,10 @@ def difference_plot(itemsets, fname=None, reg_line=True, dataset_name=None):
     plt.ylabel('residual (support - support_pred)')
     if fname:
         plt.title(fname.split('.pdf')[0])
-        plt.savefig('../../_figures/{}/{}'.format(dataset_name, 'residuals_' + fname))
+        path = '../../_figures/' + dataset_name
+        if not os.path.exists(path):
+            os.makedirs(path)
+        plt.savefig(path + '/residuals_' + fname)
     # both = both.drop(columns=['support_mean'])
     # plt.savefig('../../_figures/{}'.format('difference_scatter_' + fname))
     plt.show()
@@ -183,7 +187,11 @@ def diagonal_support_scatter(itemsets, fname=None, dataset_name=None):
     plt.ylabel('support_pred')
     # plt.tight_layout()
     if fname:
-        plt.savefig('../../_figures/{}/{}'.format(dataset_name, 'scatter_support_deviation_' + fname))
+        plt.title(fname.split('.pdf')[0])
+        path = '../../_figures/' + dataset_name
+        if not os.path.exists(path):
+            os.makedirs(path)
+        plt.savefig(path + '/residuals_' + fname)
     plt.show()
 
 
