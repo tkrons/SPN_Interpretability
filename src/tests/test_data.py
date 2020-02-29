@@ -35,6 +35,11 @@ def test_get_adult_one_hot():
     io.print_pretty_table(df.head(10))
     assert len(df.columns) == len(value_dict)
 
+def test_get_lending():
+    df, value_dict, param_types = real_data.get_real_data('lending', only_n_rows=10000, seed=5)
+    io.print_pretty_table(df.head(10))
+    assert len(df.columns) == len(value_dict)
+
 
 if __name__ == '__main__':
     test_get_titanic()
