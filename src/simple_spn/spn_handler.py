@@ -19,25 +19,26 @@ import warnings
 
 
 
-def learn_parametric_spn(data, parametric_types, rdc_threshold=0.3, min_instances_slice=0.05):
+def learn_parametric_spn(data, parametric_types, rdc_threshold=0.3, min_instances_slice=0.05, clustering='kmeans'):
     
     ds_context = Context(parametric_types=parametric_types).add_domains(data)
     ds_context.add_domains(data)
     mis = int(len(data) * min_instances_slice)
     
     t0 = time.time()
-    spn = learn_parametric(data, ds_context, threshold=rdc_threshold, min_instances_slice=mis)
+    spn = learn_parametric(data, ds_context, threshold=rdc_threshold, min_instances_slice=mis, rows=clustering)
     const_time = time.time() - t0
     
     return spn, const_time
 
 
-def create_parametric_spns(data, parametric_types, dataset_name, rdc_thresholds=[0.3], min_instances_slices=[0.05], value_dict=None, save=True, silence_warnings=False, nrows=None):
+def create_parametric_spns(data, parametric_types, dataset_name, rdc_thresholds=[0.3], min_instances_slices=[0.05], value_dict=None, save=True,
+                           clustering = 'kmeans', silence_warnings=False, nrows=None):
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         for rdc_threshold in rdc_thresholds:
             for min_instances_slice in min_instances_slices:
-                spn, const_time = learn_parametric_spn(data, parametric_types, rdc_threshold, min_instances_slice)
+                spn, const_time = learn_parametric_spn(data, parametric_types, rdc_threshold, min_instances_slice, clustering=clustering)
                 if save:
                     save_spn(spn, const_time, dataset_name, rdc_threshold, min_instances_slice, value_dict, nrows,)
                 else:

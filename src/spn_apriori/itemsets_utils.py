@@ -169,8 +169,12 @@ def diagonal_support_scatter(itemsets, fname=None, dataset_name=None):
         # if x <= 0:
         #     return 0
         return np.exp(np.exp(x) - 10)
-    ax.set_xlim([0.005, 0.05])
-    ax.set_ylim([0.005, 0.05])
+    if itemsets.support.min() < 0.05:
+        ax.set_xlim([0.005, 0.05])
+        ax.set_ylim([0.005, 0.05])
+    else:
+        # min sup too small
+        return -1
     xymax = itemsets[['support', 'support_pred']].max().max()
     # ax.plot(ax.get_xlim(), ax.get_ylim(), ls="--", c=".3", zorder=0)
     plt.scatter(itemsets['support'], itemsets['support_pred'], s = 2, marker='.', zorder=1)
@@ -217,7 +221,7 @@ def cross_eval(transactional_df, dataset_name, min_sup_steps, value_dict,
                                            rdc_thresholds=[rdc_threshold],
                                            min_instances_slices=[min_instances_slice])
     spn_train, _, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
-
+    print('Num. nodes: {}'.format(fn.get_num_nodes(spn_train)))
 
     rows, error_names = [], ['AE', 'MAE', 'MRE', 'Missing Sets', 'Excess Sets', 'Number of Sets']
     for min_sup_eval in min_sup_steps:
@@ -296,6 +300,7 @@ def calc_itemsets_df(train, spn, min_sup, test = None, value_dict=None, test_use
 
 
     print('==================== Calculating Itemsets ==============')
+    print('min_sup: {} \t {}_vs_{}'.format(min_sup, train_use, test_use))
     if train_use == 'SPN':
         PRED = spn_apriori(train, min_support=min_sup, spn=spn, value_dict=value_dict, use_colnames=True, )
     elif train_use == 'apriori':

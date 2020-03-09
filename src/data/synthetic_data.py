@@ -8,6 +8,15 @@ import numpy as np
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian
 from sklearn.datasets import make_blobs
 import pandas as pd
+from simple_spn import functions as fn
+
+def get_synthetic_data(name, **kwargs):
+    case = {
+        'icecream': generate_icecream_data,
+        'gender': generate_gender_age_data,
+        'ABCDgroceries': generate_simple_transactions,
+    }
+    return case[name](**kwargs)
 
 def generate_dummy_dataset():
     a = np.r_[np.random.normal(10, 5, (300, 1)), np.random.normal(20, 10, (700, 1))]
@@ -36,7 +45,7 @@ def generate_icecream_data(n = 40, features=2):
                   features: ['discrete', 'Man/Woman/Child', {0: 'Man', 1: 'Woman', 2: 'Child'}]})
     return np.column_stack((x, y, target)), value_dict, types
 
-def generate_gender_age_data(num_instances, rand_seed):    
+def generate_gender_age_data(num_instances=1000, rand_seed=None):
     '''
     Correlations:
     P(gender=male) = 50%
@@ -71,8 +80,11 @@ def generate_gender_age_data(num_instances, rand_seed):
             
         #inst.append(int(np.random.normal(20, 3)))
         data.append(inst)
-    
-    return np.array(data), [Categorical, Categorical, Gaussian, Gaussian]
+
+    parametric_types = [Categorical, Categorical, Gaussian, Gaussian]
+    val_dict = fn.generate_adhoc_value_dict_from_data(np.array(data), parametric_types)
+    data = pd.DataFrame(data, columns= range(len(val_dict)))
+    return data, val_dict, parametric_types
 
 def generate_simple_transactions(only_n_rows = None, seed = None):
     # apple: P(A) = 0.7
@@ -89,8 +101,9 @@ def generate_simple_transactions(only_n_rows = None, seed = None):
                   2: ['discrete', 'cheese', {0: False, 1: True}],
                   3: ['discrete', 'dumpling', {0: False, 1: True}]}
     parametric_types = [Categorical, Categorical, Categorical, Categorical]
-
     return df, value_dict, parametric_types
+
+
 
 
 
