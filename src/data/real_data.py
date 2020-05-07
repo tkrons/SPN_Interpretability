@@ -17,8 +17,10 @@ from sklearn.preprocessing import KBinsDiscretizer
 def get_real_data(name, **kwargs):
     '''wrapper to get data by name
     @:param name: titanic, T10I4D, play_store, adult
+
+    value dict: [type, name {0: value0, 1: value1...}
     '''
-    case = {'titanic': get_titanic,
+    case = {'titanic': get_titanic_bins,
             'T10I4D': get_T10I4D,
             'play_store': get_play_store,
             'adult41': get_adult_41_items,
@@ -30,7 +32,7 @@ def get_real_data(name, **kwargs):
             }
     return case[name](**kwargs)
 
-def get_lending(only_n_rows = None, seed = None):
+def get_lending(only_n_rows = None, seed = None, onehot = True):
     '''
     https://www.kaggle.com/wendykan/lending-club-loan-data
     about 2.200.000 rows,
@@ -38,7 +40,7 @@ def get_lending(only_n_rows = None, seed = None):
     # discretizer = KBinsDiscretizer(n_bins=3, encode='onehot-dense', strategy='quantile')
 
     with open('../../_data/lending/loan.csv', 'r', encoding='latin-1') as f:
-        used_cols = ['loan_amnt', 'funded_amnt', 'loan_status', 'term', 'purpose', 'int_rate', 'grade', 'emp_length',
+        used_cols = ['loan_amnt', 'loan_status', 'term', 'purpose', 'int_rate', 'grade', 'emp_length',
                     'home_ownership', 'annual_inc']
         df = pd.read_csv(f, usecols=used_cols)
         df = _shorten_df(df, only_n_rows, seed=seed)
@@ -51,8 +53,11 @@ def get_lending(only_n_rows = None, seed = None):
     # df[numeric_cols] = discretizer.fit_transform(df[numeric_cols])
 
     for c in numeric_cols:
-        quantiles = np.round(df[c].quantile([0.25, 0.5, 0.75])).astype(int).tolist()
-        q_labels = [x.format(low=quantiles[0], mid=quantiles[1], high=quantiles[2]) for x in ['0 < {low}', '{low} < {mid}', '{mid} < {high}', '{high} < inf']]
+        # quantiles = np.round(df[c].quantile([0.25, 0.5, 0.75])).astype(int).tolist()
+        # q_labels = [x.format(low=quantiles[0], mid=quantiles[1], high=quantiles[2]) for x in ['0 - {low}', '{low} - {mid}', '{mid} - {high}', '{high} - inf']]
+        quantiles = np.round(df[c].quantile([0.33, 0.66])).astype(int).tolist()
+        q_labels = [x.format(low=quantiles[0], high=quantiles[1]) for x in
+                    ['0 - {low}', '{low} - {high}', '{high} - inf']]
         df[c] = pd.cut(df[c],
                        bins = [-np.inf] + quantiles + [np.inf],
                        labels = q_labels,
@@ -61,8 +66,10 @@ def get_lending(only_n_rows = None, seed = None):
     #remove rare items
     df = df[~df.home_ownership.isin(['OTHER', 'ANY'])]
 
-    one_hot = pd.get_dummies(df, )
-    return fn.transform_dataset(one_hot)
+    if onehot:
+        df = pd.get_dummies(df, )
+
+    return fn.transform_dataset(df)
 
 def get_RecordLink(only_n_rows = None, seed =None):
     ''' https://www.philippe-fournier-viger.com/spmf/index.php?link=datasets.php
@@ -188,7 +195,13 @@ def _shorten_df(data, only_n_rows, seed=None):
             data.drop(col, inplace=True, axis=1)
     return data
 
-def get_titanic(col_names=None):
+def _one_hot_value_dict(df,):
+    vd = {}
+    for i, c in enumerate(df.columns):
+        vd[i] = ['discrete', c, {0: 0, 1: 1}]
+    return vd
+
+def get_titanic(col_names=None, onehot=False, only_n_rows=None, seed=None):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/titanic/train.csv"
 
     df = pd.read_csv(path)
@@ -201,9 +214,43 @@ def get_titanic(col_names=None):
     df["Age"].fillna(int(df["Age"].mean()), inplace=True)
     df["Embarked"].fillna("S", inplace=True)
 
+    if only_n_rows and only_n_rows < len(df):
+        df = df.sample(only_n_rows, random_state=seed)
+    if onehot:
+        df = pd.get_dummies(df)
+
     return fn.transform_dataset(df)
 
-def get_adult_one_hot(only_n_rows=None, seed=None): #todo do own data cleaning (reproducability)
+def get_titanic_bins(col_names=None, onehot=False, only_n_rows=None, seed=None):
+    path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/titanic/train.csv"
+    df = pd.read_csv(path)
+    df['NumFamily'] = (df.SibSp + df.Parch).astype(int)
+    df.loc[df.NumFamily >= 3, 'NumFamily'] = '3+'
+    df.NumFamily = df.NumFamily.astype(str)
+    df.Embarked.replace({'C': 'Cherbourg', 'Q': 'Queenstown', 'S': 'Southampton'}, inplace=True)
+    df["Embarked"].fillna("Unknown", inplace=True)
+    df.drop(columns=["PassengerId", "Name", "Ticket", "Cabin", 'SibSp', 'Parch', 'Fare'], inplace=True)
+    if col_names is not None:
+        df = df[col_names]
+    df.Pclass = df.Pclass.astype(str)
+    # Fill missing values
+    df['Age_'] = np.NaN
+    df.loc[df['Age'] < 16, 'Age_'] = 'child'
+    df.loc[df['Age'].between(16, 30), 'Age_'] = 'young-adult'
+    df.loc[df['Age'].between(31, 50), 'Age_'] = 'middle-aged'
+    df.loc[df['Age'].between(50, df.Age.max()), 'Age_'] = 'old'
+    df['Age_'].fillna('Unknown', inplace=True)
+    df = df.drop(columns=['Age']).rename(columns={'Age_': 'Age'})
+
+    if only_n_rows and only_n_rows < len(df):
+        df = df.sample(only_n_rows, random_state=seed)
+    if onehot:
+        df = pd.get_dummies(df)
+
+    return fn.transform_dataset(df)
+
+
+def get_adult_one_hot(only_n_rows=None, seed=None):
     '''
     UCI adult dataset
     :return:
@@ -223,7 +270,7 @@ def get_adult_one_hot(only_n_rows=None, seed=None): #todo do own data cleaning (
 
     df['hours-per-week'] = pd.cut(df['hours-per-week'], [0, 35, 45, np.inf],
                                   labels=['work hours < 35', 'work hours 35-45', 'work hours > 45'])
-    # # filter rare countries
+    # filter rare countries
     # counts = df['native-country'].value_counts()
     # df =df[df['native-country'].isin(counts.index[counts > 20])]
     # # filter rare occupations
@@ -232,9 +279,15 @@ def get_adult_one_hot(only_n_rows=None, seed=None): #todo do own data cleaning (
     # only use 51? items
     df.drop(columns=['hours-per-week', 'native-country', 'occupation'], inplace=True)
     one_hot = pd.get_dummies(df, prefix='', prefix_sep='')
-    return fn.transform_dataset(one_hot)
+    if only_n_rows:
+        one_hot = one_hot.sample(only_n_rows)
+    print('adult_one_hot: {} Rows, {} Items'.format(len(one_hot), len(one_hot.columns)))
+    val_dict = _one_hot_value_dict(one_hot)
+    parametric_types = [Categorical] * len(val_dict)
+    return one_hot, val_dict, parametric_types
+    # return fn.transform_dataset(one_hot, )
 
-def get_adult_41_items(convert_tabular = False):
+def get_adult_41_items(onehot = False, only_n_rows=None, seed = None):
     '''
     UCI adult dataset. cleaned and in transactional form
     The age was discretized. numeric columns (except age) were removed.
@@ -245,7 +298,7 @@ def get_adult_41_items(convert_tabular = False):
     '''
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/adult/adult_data_transactions.data"
 
-    if not convert_tabular:
+    if onehot:
         transaction_encoder = TransactionEncoder()
         # data = []
         # with open(path) as f:
@@ -255,12 +308,13 @@ def get_adult_41_items(convert_tabular = False):
         # one_hot_df = pd.DataFrame(fit.transform(data), columns=fit.columns_)
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
         tabular = pd.read_table(path, sep=',', names=columns, skipinitialspace=True)
-        one_hot_df = pd.get_dummies(tabular, prefix='', prefix_sep='', dtype=np.bool)
-        return fn.transform_dataset(one_hot_df)
+        df = pd.get_dummies(tabular, prefix='', prefix_sep='', dtype=np.bool)
     else:
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
-        tabular = pd.read_table(path, sep=',', names = columns, skipinitialspace=True)
-        return fn.transform_dataset(tabular)
+        df = pd.read_table(path, sep=',', names = columns, skipinitialspace=True)
+    if only_n_rows and only_n_rows < len(df):
+        df = df.sample(only_n_rows, random_state=seed)
+    return fn.transform_dataset(df)
 
 def get_play_store(one_hot=True):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/play_store/googleplaystore.csv"
