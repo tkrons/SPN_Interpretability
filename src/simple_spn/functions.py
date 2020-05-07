@@ -286,9 +286,29 @@ def _compute_weighted_mean_and_variance(weights, vals):
     return mean, variance
 
 
+def get_leaf_populations(spn, sort=True, top=None):
+    ''' get subpopulations as understood by me (Tim) '''
+    def _recursive(spn, res, w):
+        childrentypes = [type(c) for c in spn.children]
+        if Sum not in childrentypes and Product not in childrentypes: # terminal subpop
+            res.append([w, spn.children])
+        else:
+            for i, c in enumerate(spn.children):
+                if isinstance(c, Sum)  or isinstance(c, Product):
+                    if isinstance(spn, Sum):
+                        w *= spn.weights[i]
+                    _recursive(c, res, w)
+    leaf_pops = []
+    _recursive(spn, leaf_pops, 1)
+    if sort:
+        leaf_pops = sorted(leaf_pops, key=lambda x: x[0], reverse=True)
+    if top:
+        leaf_pops = leaf_pops[:top]
+    return leaf_pops
 
 
-def get_sub_populations(spn, sort=True, top=None):
+
+def get_sub_populations(spn, sort=True, top=None,):
     sub_pops = _get_sub_populations_recursive(spn, rang=None)
     sub_pops = [[prob, dists] for [prob, dists] in sub_pops if prob > 0]
     sub_pops = [[prob, sorted(dists, key=lambda x: x.scope[0])] for [prob, dists] in sub_pops]
@@ -332,7 +352,7 @@ def _get_sub_populations_recursive(spn, rang=None):
         return collected_subs
     
     else:
-        raise Exception("Invalide node: " + str(spn))
+        raise ValueError("Invalide node: " + str(spn))
 
 
 

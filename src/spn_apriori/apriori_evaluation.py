@@ -145,10 +145,10 @@ def plot_error_brackets(itemsets, error_names, dataset_name, ylog=False,): #todo
 
 if __name__ == '__main__':
     ## PARAMETERS ##
-    dataset_name = "adult_one_hot"
-    only_n_rows = None
+    dataset_name = "lending"
+    only_n_rows = 10000
     
-    min_sup = 0.01
+    min_sup = 0.2
     # min_sup = 0 oder nah an null lässt PC einfrieren..
     rdc_threshold, min_instances_slice = 0.1, 0.01
     recalc_spn = True
@@ -172,7 +172,7 @@ if __name__ == '__main__':
         df, value_dict, parametric_types = real_data.get_adult_41_items()
         transactional_df = df # equal in this case
     elif dataset_name == 'UCI_tabular':
-        df, value_dict, parametric_types = real_data.get_adult_41_items(convert_tabular=True)
+        df, value_dict, parametric_types = real_data.get_adult_41_items(onehot=True)
         #get transactions for normal apriori
         transactional_df, _, _ = real_data.get_adult_41_items()
     else:

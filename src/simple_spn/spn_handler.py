@@ -72,6 +72,19 @@ def load_spn(dataset_name, rdc_threshold, min_instances_slice, nrows = None):
         fname = fname + '_n=' + np.format_float_scientific(nrows, precision=0, trim='-')
     return io.load(fname, dataset_name, "_spns")
 
+def load_or_create_spn(df, value_dict, parametric_t, dataset_name, rdc_threshold, min_instances_slice,
+                       nrows=None, seed=None, force_create=False, clustering=None):
+    if not exist_spn(dataset_name, rdc_threshold, min_instances_slice) or force_create:
+        print("Creating SPN ...")
+
+        # Creates the SPN and saves to a file
+        create_parametric_spns(df.values, parametric_t, dataset_name, [rdc_threshold],
+                               [min_instances_slice],
+                               clustering=clustering, value_dict=value_dict)
+
+    # Load SPN
+    spn, _, _ = load_spn(dataset_name, rdc_threshold, min_instances_slice)
+    return spn
 
 
 '''

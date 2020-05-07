@@ -94,6 +94,10 @@ def get_labeled_rule(head, body, value_dict):
     labeled_head = Condition(head_name, np.equal, head_dict[head.threshold])
     return labeled_head, Rule(new_cs)
 
+def fbeta_score(prec, rec, beta):
+    beta2 = beta ** 2
+    return ((1 + beta2) * prec * rec) / (rec + (beta2 * prec))
+
 def reverse_label_rule(body, head, value_dict):
     new_cs = []
     for cond in body:
@@ -120,10 +124,12 @@ def get_interesting_leaves(spn, subpop, value_dict, top=5, min_conf = 0.75):
                 # p = list
                     # prior = prior_dist[leaf.scope[0]]
                     # prior = [1 - prior, prior]7
+                if np.argmax(leaf.p) == 0:
+                    continue # only positive
+                elif len(leaf.p) > 2:
+                    raise ValueError()
                 prior = prior_gen.calculate_prior(spn, leaf, value_dict)
                 js = jensenshannon(leaf.p, prior, )
-                if len(leaf.p) > 2 or np.argmax(leaf.p) == 0:
-                    continue # only positive
                 if max(leaf.p) > min_conf:
                     diffs.append(js)
                     res_leaves.append(leaf)
@@ -144,7 +150,7 @@ def p_from_scope(node, target, value_dict):
 
 
 
-def rule_stats(root, body, head, local=None, metrics=['sup', 'conf', 'F', 'head_sup']):
+def rule_stats(root, body, head, metrics, local=None, beta=1):
     rang = get_spn_range(body, root)
     res = []
     if local:
@@ -168,8 +174,9 @@ def rule_stats(root, body, head, local=None, metrics=['sup', 'conf', 'F', 'head_
             res.append(body_sup)
         elif m == 'conf':
             res.append(conf)
-        elif 'F' == m:
-            res.append((2 * conf * body_sup) / (conf + body_sup))
+        elif 'F' == m: #todo bug all the same??
+            # res.append((2 * conf * body_sup) / (conf + body_sup))
+            res.append(fbeta_score(conf, body_sup, beta))
         elif m == 'head_sup':
             res.append(head_sup)
     return res
@@ -178,7 +185,8 @@ def rule_stats_df():
     #todo
     pass
 
-def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_sup', 'F'], labeled=True):
+def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_sup', 'F'],
+                              full_value_dict = None, beta=1., labeled=True):
     #todo rule propagate as left: var = threshold right: var != threshold
     # @ rule merge (x = 5) (x != 3) -> (x = 5) automatic regulation
     subpops = fn.get_sub_populations(spn,)
@@ -191,7 +199,8 @@ def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_s
     for leaf, diff, weight in l:
         leafrules = get_leaf_rules(leaf)
         for r in leafrules:
-            rules.append([r, diff, weight])
+            if head_compatible_body(r[1], r[0], one_hot_vd=value_dict, full_value_dict=full_value_dict):
+                rules.append([r, diff, weight])
     # rrules, rheads, rsup, rconf = [], [], [], []
     final_rules = []
     for lst in rules:
@@ -199,9 +208,9 @@ def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_s
         rule, head = lst[0]
         if len(rule) == 0 or len(head) == 0:
             continue
-        stats = rule_stats(spn, rule, head, metrics=metrics)
+        stats = rule_stats(spn, rule, head, metrics=metrics, beta=beta)
 
-        if stats[1] > 0.5 and stats[0] > 0.0001:
+        if stats[metrics.index('F')] > 0.03:
         # if True:
             final_rules.append((head, rule, *stats))
     if labeled:
@@ -213,8 +222,8 @@ def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_s
 #todo m-estimate https://scholar.google.de/scholar?q=m-estimate+rule+induction&hl=de&as_sdt=0&as_vis=1&oi=scholart
 
 class IntraNode:
-    def __init__(self, min_target_js = 0.2, min_local_js = 0.,
-                 body_max_len = 4, head_max_len = 1, min_global_conf = 0.75, min_local_p = 0.):
+    def __init__(self, metrics, min_target_js = 0.2, min_local_js = 0., min_global_F=0.,
+                 body_max_len = 4, head_max_len = 1, min_global_conf = 'above_random', min_local_p = 0., beta=1.):
         self.body_max_len = body_max_len
         self.head_max_len = head_max_len
         self.min_local_p = min_local_p
@@ -222,20 +231,34 @@ class IntraNode:
         self.min_target_js = min_target_js
         self.min_local_js = min_local_js
         self.min_local_p = min_local_p
+        self.min_global_F = min_global_F,
+        self.beta = beta
+        self.metrics = metrics
 
         self.prior_gen = prior_distributions_lazy()
         self.rules_yielded = {} # True: yielded False: not qualified
 
-    def intra_rules_df(self, spn, target_vars, value_dict, max_candidates=1000, labels=False):
-        itr = itertools.islice(self.rule_iterate(spn, target_vars, value_dict), max_candidates)
+    def intra_rules_df(self, spn, target_vars, value_dict, max_candidates=1000, labels=False, rules_per_value=None):
+        itr = self.rule_iterate(spn, target_vars, value_dict)
         # rules = list(itr)
         rules = []
+        target_values = {t: {k: 0 for k in value_dict[t][2].keys()} for t in target_vars}
         i=0
         for e in itr:
-            if i >= max_candidates:
-                break
-            rules.append(e)
-            i += 1
+            if rules_per_value:
+                head = e[0]
+                vals = target_values[head.var]
+                if vals[head.threshold] < rules_per_value:
+                    rules.append(e)
+                    vals[head.threshold] += 1
+
+            elif max_candidates:
+                if i >= max_candidates:
+                    break
+                rules.append(e)
+                i += 1
+            else:
+                raise ValueError()
         if labels:
             for lst in rules:
 
@@ -243,7 +266,7 @@ class IntraNode:
                 head, body = get_labeled_rule(head, body, value_dict)
                 lst[0], lst[1] = head, body
                 # body, head = str(body), str(head)
-        cols = ['head', 'body', 'sup', 'conf', 'F', 'head_sup']
+        cols = ['head', 'body', *self.metrics]
         df = pd.DataFrame(rules, columns=cols, )
         return df.sort_values('F', ascending=False)
 
@@ -281,12 +304,12 @@ class IntraNode:
             for var in vars:
                 if isinstance(var, Categorical):
                     varp = var.p
-                    if max(var.p) < self.min_local_p:
+                    if self.min_local_p and max(var.p) < self.min_local_p:
                         continue
                     leaf = var.scope[0]
                 elif isinstance(var, int):
                     varp = p_from_scope(node, var, value_dict)
-                    if max(varp) < self.min_local_p:
+                    if self.min_local_p and max(varp) < self.min_local_p:
                         continue
                     leaf = var
                 else:
@@ -336,17 +359,28 @@ class IntraNode:
             if isinstance(target, Categorical):
                 targetp = target.p
                 target = target.scope[0]
-            head = Condition(target, np.equal, np.argmax(targetp))
+            # head = Condition(target, np.equal, np.argmax(targetp))
+            # todo use all heads where p[head] > p[prior_head] ??
+            heads = []
+            for val in range(len(targetp)):
+                if targetp[val] > self.prior_gen.calculate_prior(spn, target, value_dict)[val]:
+                    heads.append(Condition(target, np.equal, val))
             # local rule quality check
             l=list(yield_rules(eligable_leaves,))
             for r in l:
-                if (head, r) not in self.rules_yielded:
-                    stats = rule_stats(root, r, head, metrics=['sup', 'conf', 'F', 'head_sup'])
-                    if stats[1] >= self.min_global_conf:
-                        self.rules_yielded[(head, r)] = True
-                        yield [head, r, *stats]
-                    else:
-                        self.rules_yielded[(head, r)] = False
+                for head in heads:
+                    if (head, r) not in self.rules_yielded:
+                        stats = rule_stats(root, r, head, metrics=self.metrics, beta=self.beta)
+                        if isinstance(self.min_global_conf, str) and self.min_global_conf == 'above_random':
+                            min_conf = 1. / len(targetp)
+                        else:
+                            min_conf = self.min_global_conf
+                        if stats[self.metrics.index('conf')] >= min_conf and \
+                                stats[self.metrics.index('F')] >= self.min_global_F:
+                            self.rules_yielded[(head, r)] = True
+                            yield [head, r, *stats]
+                        else:
+                            self.rules_yielded[(head, r)] = False
             # leaves target rules END
         # recursion first call
         # yield from _recurse_spn_local_rules(spn)
@@ -396,5 +430,16 @@ def append_rules(rules):
             conds.append(r)
     return conds
 
-
+def head_compatible_body(head, body, one_hot_vd, full_value_dict):
+    _, name, values = one_hot_vd[head.var]
+    # name muss in fullvd[2].values() sein
+    for _, (_, column_name, attributes) in full_value_dict.items():
+        if name in attributes.values() or column_name in name:
+            # found the column
+            for c in body:
+                cname = one_hot_vd[c.var][1]
+                if cname in attributes.values() or column_name in cname:
+                    return False
+            return True
+    return True
 

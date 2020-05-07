@@ -16,7 +16,7 @@ import random
 from spn.structure.Base import Rule
 res_path = '../../_results/rule_extraction/'
 
-def evaluate_rules(data, rules_df, value_dict, metrics=['sup', 'conf', 'head_sup', 'F']):
+def evaluate_rules(data, rules_df, value_dict, metrics=['sup', 'conf', 'head_sup', 'F'], beta=1):
     results = []
     for _, row in rules_df.iterrows():
         head, body = row['head'], row['body']
@@ -35,17 +35,19 @@ def evaluate_rules(data, rules_df, value_dict, metrics=['sup', 'conf', 'head_sup
     return df
 
 def hyperparam_grid_search(data, spn, value_dict,):
-    # TODO min_global_F??
     # hyperparams = {'min_target_js': [0., 0.01, 0.1, 0.2, 0.4],
     #                'min_global_conf': [0.3, 0.6, 0.7, 0.8],
     #                'body_max_len': [4, 5],
     #                'min_local_js': [0., 0.01, 0.1, 0.2, 0.4],
     #                'min_local_p': [0., 0.3]}
     hyperparams = {'min_target_js': [0., 0.1, 0.4],
-                   'min_global_conf': [0., 0.6, 0.7],
+                   'min_global_conf': [0.],
                    'body_max_len': [4],
-                   'min_local_js': [0., 0.1, 0.2],
-                   'min_local_p': [0., 0.3]}
+                   'min_local_js': [0.],
+                   'min_local_p': [0.,],
+                   'min_global_F': [0., 0.2, 0.4, 0.6, 0.8],
+                   'beta': [0.3],
+                   'metrics': ['sup', 'conf', 'head_sup', 'F']}
 
     combinations = list(itertools.product(*hyperparams.values()))
     random.shuffle(combinations)
@@ -61,7 +63,7 @@ def hyperparam_grid_search(data, spn, value_dict,):
         intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict, max_candidates=50,
                                         labels=True)
 
-        eval_intra = evaluate_rules(data, intra_df, value_dict, metrics=metrics)
+        eval_intra = evaluate_rules(data, intra_df, value_dict, metrics=metrics, beta=beta)
         # eval_top = evaluate_rules(onehot_df, topdown_rules, vd_onehot, metrics=metrics)
         eval_intra['method'] = 'IntraNode'
         if len(eval_intra) != 0:
@@ -87,13 +89,19 @@ def hyperparam_grid_search(data, spn, value_dict,):
 
 
 
-dataset_name = 'adult41'
+# dataset_name = 'adult41'
+# targts = [3,5]
+# dataset_name = 'lending'
+# targts = [0, 7]
+dataset_name = 'titanic'
+targts = [0, 1]
 recalc_SPN = True
-rdc_threshold, min_instances_slice = 0.1, 0.1
-n_rows = None
+rdc_threshold, min_instances_slice = 0.1, 0.05
+n_rows = 10000
+beta = 0.2
 
 # get data
-df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1)
+df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot=False)
 # if not spn_handler.exist_spn(dataset_name, rdc_threshold, min_instances_slice) or recalc_SPN:
 #     print("Creating SPN ...")
 #
@@ -117,19 +125,24 @@ spn_one_hot = spn_handler.load_or_create_spn(onehot_df, vd_onehot, pt_onehot, da
 # rules = rule_ex.topdown_interesting_rules(spn, df, value_dict)
 
 # #todo method: choosing rules based on overlap / overall support
-lax_hyperparams = {'min_target_js': 0.03, 'min_global_conf': 0.6, 'body_max_len': 4, 'min_local_js': 0.01}
-intra = rule_ex.IntraNode(**lax_hyperparams)
-targts = [3, 5]
-print('Targets: ', [df.columns[i] for i in targts])
-intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict, max_candidates=1000, labels=True)
-with open(res_path + 'intra_rules_{}.df'.format(dataset_name), 'wb') as f:
-    pickle.dump(intra_df, f)
+lax_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 0., 'body_max_len': 6, 'min_local_js': 0.,
+                   'min_global_F': 0.05, 'beta': beta, 'metrics': ['sup', 'conf', 'head_sup', 'F']}
+rules_per_value = 100
 
+print('Num of rules expected: ', sum([len(value_dict[t][2].keys()) for t in targts]) * rules_per_value)
+intra = rule_ex.IntraNode(**lax_hyperparams)
+print('Targets: ', [df.columns[i] for i in targts])
+intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict,
+                                rules_per_value = rules_per_value,
+                                # max_candidates=1000,
+                                labels=True,)
+
+intra_df = intra_df.sort_values(['head', 'F'], ascending=False)
 intra_df.to_csv(res_path + 'intra_rules_{}.csv'.format(dataset_name))
 print(rule_ex.df_display(intra_df))
 
 if len(vd_onehot[0][2]) == 2:
-    topdown_rules = rule_ex.topdown_interesting_rules(spn_one_hot, vd_onehot)
+    topdown_rules = rule_ex.topdown_interesting_rules(spn_one_hot, vd_onehot, full_value_dict = value_dict, beta=beta)
     topdown_rules = topdown_rules.sort_values(['F'], ascending=False)
     topdown_rules.to_csv(res_path + 'topdown_df_{}.csv'.format(dataset_name))
     print(rule_ex.df_display(topdown_rules))
@@ -140,19 +153,18 @@ else:
 rules_intra = intra_df.head(len(topdown_rules))
 metrics = ['sup', 'conf', 'head_sup', 'F']
 
-eval_intra = evaluate_rules(df, rules_intra, value_dict, metrics=metrics)
-eval_top = evaluate_rules(onehot_df, topdown_rules, vd_onehot, metrics=metrics)
+eval_intra = evaluate_rules(df, rules_intra, value_dict, metrics=metrics, beta=beta)
+eval_top = evaluate_rules(onehot_df, topdown_rules, vd_onehot, metrics=metrics, beta=beta)
 eval_intra['method'] = 'IntraNode'
 eval_top['method'] = 'Topdown'
-res = pd.concat([eval_intra, eval_top], )
-res.drop_duplicates(['head', 'body'], inplace=True)
-res = res.sort_values('F', ascending=False)
-# sort working??
-comp = res
+comp = pd.concat([eval_intra, eval_top], )
+comp.drop_duplicates(['head', 'body'], inplace=True)
+comp = comp.sort_values('F', ascending=False)
+
 comp.to_csv(res_path + 'comparison_{}.csv'.format(dataset_name))
 
 # mean F of first N rules
-comp.groupby('method').head(10).groupby('method').mean()
+print(comp.groupby('method').mean())
 
 hyperparam_grid_search(df, spn, value_dict)
 
