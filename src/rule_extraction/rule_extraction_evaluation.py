@@ -26,11 +26,7 @@ def evaluate_rules(data, rules_df, value_dict, metrics=['sup', 'conf', 'head_sup
         support = np.mean(body_true)
         confidence = np.mean(pos) / support
         head_sup = np.mean(head_true)
-        if support == 0:
-            F = 0
-        else:
-            F = (2 * confidence * support) / (confidence + support)
-        results.append([head, body, support,confidence, head_sup, F])
+        results.append([head, body, *metrics])
     df = pd.DataFrame(results, columns = ['head', 'body', *metrics])
     return df
 
@@ -41,13 +37,13 @@ def hyperparam_grid_search(data, spn, value_dict,):
     #                'min_local_js': [0., 0.01, 0.1, 0.2, 0.4],
     #                'min_local_p': [0., 0.3]}
     hyperparams = {'min_target_js': [0., 0.1, 0.4],
-                   'min_global_conf': [0.],
+                   'min_global_conf': ['above_random'],
                    'body_max_len': [4],
                    'min_local_js': [0.],
                    'min_local_p': [0.,],
                    'min_global_F': [0., 0.2, 0.4, 0.6, 0.8],
                    'beta': [0.3],
-                   'metrics': ['sup', 'conf', 'head_sup', 'F']}
+                   'metrics': ['sup', 'conf', 'conviction', 'F']}
 
     combinations = list(itertools.product(*hyperparams.values()))
     random.shuffle(combinations)
@@ -87,86 +83,86 @@ def hyperparam_grid_search(data, spn, value_dict,):
     return df
 
 
+if __name__ == '__main__':
 
+    # dataset_name = 'adult41'
+    # targts = [3,5]
+    # dataset_name = 'lending'
+    # targts = [0, 7]
+    dataset_name = 'titanic'
+    targts = [0, 1]
+    recalc_SPN = True
+    rdc_threshold, min_instances_slice = 0.1, 0.05
+    n_rows = 10000
+    beta = 0.2
 
-# dataset_name = 'adult41'
-# targts = [3,5]
-# dataset_name = 'lending'
-# targts = [0, 7]
-dataset_name = 'titanic'
-targts = [0, 1]
-recalc_SPN = True
-rdc_threshold, min_instances_slice = 0.1, 0.05
-n_rows = 10000
-beta = 0.2
+    # get data
+    df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot=False)
+    # if not spn_handler.exist_spn(dataset_name, rdc_threshold, min_instances_slice) or recalc_SPN:
+    #     print("Creating SPN ...")
+    #
+    #     # Creates the SPN and saves to a file
+    #     spn_handler.create_parametric_spns(df.values, parametric_types, dataset_name, [rdc_threshold], [min_instances_slice],
+    #                                        clustering = 'km_rule_clustering', value_dict=value_dict)
+    #
+    # # Load SPN
+    # spn, value_dict, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
+    spn = spn_handler.load_or_create_spn(df, value_dict, parametric_types, dataset_name, rdc_threshold, min_instances_slice,
+                                   nrows=n_rows, seed=1, force_create=recalc_SPN, clustering='km_rule_clustering')
 
-# get data
-df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot=False)
-# if not spn_handler.exist_spn(dataset_name, rdc_threshold, min_instances_slice) or recalc_SPN:
-#     print("Creating SPN ...")
-#
-#     # Creates the SPN and saves to a file
-#     spn_handler.create_parametric_spns(df.values, parametric_types, dataset_name, [rdc_threshold], [min_instances_slice],
-#                                        clustering = 'km_rule_clustering', value_dict=value_dict)
-#
-# # Load SPN
-# spn, value_dict, _ = spn_handler.load_spn(dataset_name, rdc_threshold, min_instances_slice)
-spn = spn_handler.load_or_create_spn(df, value_dict, parametric_types, dataset_name, rdc_threshold, min_instances_slice,
-                               nrows=n_rows, seed=1, force_create=recalc_SPN, clustering='km_rule_clustering')
+    onehot_df, vd_onehot, pt_onehot = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot = True)
+    spn_one_hot = spn_handler.load_or_create_spn(onehot_df, vd_onehot, pt_onehot, dataset_name + '_one_hot', rdc_threshold, min_instances_slice,
+                                   nrows=n_rows, seed=1, force_create=recalc_SPN, clustering='km_rule_clustering')
 
-onehot_df, vd_onehot, pt_onehot = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot = True)
-spn_one_hot = spn_handler.load_or_create_spn(onehot_df, vd_onehot, pt_onehot, dataset_name + '_one_hot', rdc_threshold, min_instances_slice,
-                               nrows=n_rows, seed=1, force_create=recalc_SPN, clustering='km_rule_clustering')
+    # print(fn.get_sub_populations(spn, rule=True))
+    # subpops = fn.get_leaf_populations(spn,)
+    # l = get_interesting_leaves(spn, subpops[0])
+    # rules = [get_labeled_rule(pop[0], df.columns) for pop in l]
+    # rules = rule_ex.topdown_interesting_rules(spn, df, value_dict)
 
-# print(fn.get_sub_populations(spn, rule=True))
-# subpops = fn.get_leaf_populations(spn,)
-# l = get_interesting_leaves(spn, subpops[0])
-# rules = [get_labeled_rule(pop[0], df.columns) for pop in l]
-# rules = rule_ex.topdown_interesting_rules(spn, df, value_dict)
+    # #todo method: choosing rules based on overlap / overall support
+    lax_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 'above_random', 'body_max_len': 6, 'min_local_js': 0.,
+                       'min_global_F': 0.05, 'beta': beta, 'metrics': ['sup', 'conf', 'conviction', 'F']}
+    rules_per_value = 100
 
-# #todo method: choosing rules based on overlap / overall support
-lax_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 0., 'body_max_len': 6, 'min_local_js': 0.,
-                   'min_global_F': 0.05, 'beta': beta, 'metrics': ['sup', 'conf', 'head_sup', 'F']}
-rules_per_value = 100
+    print('Num of rules expected: ', sum([len(value_dict[t][2].keys()) for t in targts]) * rules_per_value)
+    intra = rule_ex.IntraNode(**lax_hyperparams)
+    print('Targets: ', [df.columns[i] for i in targts])
+    intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict,
+                                    rules_per_value = rules_per_value,
+                                    # max_candidates=1000,
+                                    labels=True,)
 
-print('Num of rules expected: ', sum([len(value_dict[t][2].keys()) for t in targts]) * rules_per_value)
-intra = rule_ex.IntraNode(**lax_hyperparams)
-print('Targets: ', [df.columns[i] for i in targts])
-intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict,
-                                rules_per_value = rules_per_value,
-                                # max_candidates=1000,
-                                labels=True,)
+    intra_df = intra_df.sort_values(['head', 'F'], ascending=False)
+    intra_df.to_csv(res_path + 'intra_rules_{}.csv'.format(dataset_name))
+    print(rule_ex.df_display(intra_df))
 
-intra_df = intra_df.sort_values(['head', 'F'], ascending=False)
-intra_df.to_csv(res_path + 'intra_rules_{}.csv'.format(dataset_name))
-print(rule_ex.df_display(intra_df))
+    if len(vd_onehot[0][2]) == 2:
+        topdown_rules = rule_ex.topdown_interesting_rules(spn_one_hot, vd_onehot, full_value_dict = value_dict, beta=beta)
+        topdown_rules = topdown_rules.sort_values(['F'], ascending=False)
+        topdown_rules.to_csv(res_path + 'topdown_df_{}.csv'.format(dataset_name))
+        print(rule_ex.df_display(topdown_rules))
+    else:
+        print('Data not compatible for topdown')
+    # labeled = rule_ex.df2labeled(intra_df, value_dict)
 
-if len(vd_onehot[0][2]) == 2:
-    topdown_rules = rule_ex.topdown_interesting_rules(spn_one_hot, vd_onehot, full_value_dict = value_dict, beta=beta)
-    topdown_rules = topdown_rules.sort_values(['F'], ascending=False)
-    topdown_rules.to_csv(res_path + 'topdown_df_{}.csv'.format(dataset_name))
-    print(rule_ex.df_display(topdown_rules))
-else:
-    print('Data not compatible for topdown')
-# labeled = rule_ex.df2labeled(intra_df, value_dict)
+    rules_intra = intra_df.head(len(topdown_rules))
+    metrics = ['sup', 'conf', 'conviction', 'F']
 
-rules_intra = intra_df.head(len(topdown_rules))
-metrics = ['sup', 'conf', 'head_sup', 'F']
+    eval_intra = evaluate_rules(df, rules_intra, value_dict, metrics=metrics, beta=beta)
+    eval_top = evaluate_rules(onehot_df, topdown_rules, vd_onehot, metrics=metrics, beta=beta)
+    eval_intra['method'] = 'IntraNode'
+    eval_top['method'] = 'Topdown'
+    comp = pd.concat([eval_intra, eval_top], )
+    comp.drop_duplicates(['head', 'body'], inplace=True)
+    comp = comp.sort_values('F', ascending=False)
 
-eval_intra = evaluate_rules(df, rules_intra, value_dict, metrics=metrics, beta=beta)
-eval_top = evaluate_rules(onehot_df, topdown_rules, vd_onehot, metrics=metrics, beta=beta)
-eval_intra['method'] = 'IntraNode'
-eval_top['method'] = 'Topdown'
-comp = pd.concat([eval_intra, eval_top], )
-comp.drop_duplicates(['head', 'body'], inplace=True)
-comp = comp.sort_values('F', ascending=False)
+    comp.to_csv(res_path + 'comparison_{}.csv'.format(dataset_name))
 
-comp.to_csv(res_path + 'comparison_{}.csv'.format(dataset_name))
+    # mean F of first N rules
+    print(comp.groupby('method').mean())
 
-# mean F of first N rules
-print(comp.groupby('method').mean())
+    hyperparam_grid_search(df, spn, value_dict)
 
-hyperparam_grid_search(df, spn, value_dict)
-
-fn.print_statistics(spn)
+    fn.print_statistics(spn)
 

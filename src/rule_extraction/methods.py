@@ -6,9 +6,13 @@ from simple_spn import functions as fn
 from spn.structure.leaves.parametric.Parametric import Categorical
 from spn.structure.Base import Leaf, Product, Sum, Condition, Rule
 # from scipy.stats import kstest, chisquare
+import random
+import math
 from scipy.spatial.distance import jensenshannon
 import pandas as pd
 import itertools
+
+from spn.experiments.AQP.Ranges import NominalRange, NumericRange
 
 class prior_distributions_lazy():
     def __init__(self,):
@@ -94,9 +98,31 @@ def get_labeled_rule(head, body, value_dict):
     labeled_head = Condition(head_name, np.equal, head_dict[head.threshold])
     return labeled_head, Rule(new_cs)
 
+def format_mlxtend2rule_ex(head = None, body = None, ):
+    if head:
+        assert len(head) == 1, 'longer heads not implemented'
+        res_h = Condition(tuple(head)[0], np.equal, 1)
+    if body:
+        conds = []
+        for it in body:
+            conds.append(Condition(it, np.equal, 1))
+    if body and head:
+        return res_h, Rule(conds)
+    elif head:
+        return res_h
+    elif body:
+        return Rule(conds)
+
 def fbeta_score(prec, rec, beta):
     beta2 = beta ** 2
     return ((1 + beta2) * prec * rec) / (rec + (beta2 * prec))
+
+def conviction(head_sup, conf):
+    # conviction: http://rasbt.github.io/mlxtend/user_guide/frequent_patterns/association_rules/
+    if conf == 1:
+        return np.NaN
+    else:
+        return np.divide(1 - head_sup, 1 - conf)
 
 def reverse_label_rule(body, head, value_dict):
     new_cs = []
@@ -110,7 +136,7 @@ def reverse_label_rule(body, head, value_dict):
     #
     # return Rule(new_cs), conseq
 
-def get_interesting_leaves(spn, subpop, value_dict, top=5, min_conf = 0.75):
+def get_interesting_leaves(spn, subpop, value_dict, top=5, min_conf = 'above_random'):
     prior_gen = prior_distributions_lazy()
 
     weight, leaves = subpop
@@ -130,9 +156,12 @@ def get_interesting_leaves(spn, subpop, value_dict, top=5, min_conf = 0.75):
                     raise ValueError()
                 prior = prior_gen.calculate_prior(spn, leaf, value_dict)
                 js = jensenshannon(leaf.p, prior, )
-                if max(leaf.p) > min_conf:
-                    diffs.append(js)
-                    res_leaves.append(leaf)
+                if min_conf == 'above_random':
+                    if max(leaf.p) > prior[np.argmax(leaf.p)]:
+                        diffs.append(js)
+                        res_leaves.append(leaf)
+                else:
+                    raise NotImplementedError()
             else:
                 raise ValueError('Not implemented')
     sort = sorted(zip(res_leaves, diffs, [weight]*len(res_leaves)), key=lambda x: x[1], reverse=True)[:top]
@@ -148,9 +177,28 @@ def p_from_scope(node, target, value_dict):
         p.append(fn.prob_spflow(node, rang))
     return p
 
+def rule_str2idx(r, value_dict):
+    if isinstance(r, Condition):
+        r = [r] #conditions
+
+    res_conds = []
+    for cond in r:
+        for i, (_, name, vals) in value_dict.items():
+            if  name == cond.var:
+                inv_vals = {v: k for k, v in vals.items()}
+                res_conds.append(Condition(i, np.equal, inv_vals[cond.threshold]))
+    assert len(res_conds) ==  len(r)
+
+    if isinstance(r, Condition):
+        return res_conds[0]
+    else:
+        return Rule(res_conds)
 
 
-def rule_stats(root, body, head, metrics, local=None, beta=1):
+def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None):
+    if isinstance(head.var, str):
+        body = rule_str2idx(body, value_dict)
+        head = rule_str2idx(head, value_dict)
     rang = get_spn_range(body, root)
     res = []
     if local:
@@ -174,16 +222,30 @@ def rule_stats(root, body, head, metrics, local=None, beta=1):
             res.append(body_sup)
         elif m == 'conf':
             res.append(conf)
-        elif 'F' == m: #todo bug all the same??
+        elif 'F' == m:
             # res.append((2 * conf * body_sup) / (conf + body_sup))
             res.append(fbeta_score(conf, body_sup, beta))
         elif m == 'head_sup':
             res.append(head_sup)
+        elif m == 'conviction':
+            res.append(conviction(head_sup, conf))
+        elif m == 'lift':
+            res.append(conf / head_sup)
+        elif m == 'interestingness':
+            res.append(total_sup / body_sup - head_sup)
+        elif m == 'PiSh':
+            res.append(total_sup - body_sup * head_sup)
+        elif m == 'leverage':
+            res.append(conf - head_sup * body_sup)
+        # elif m == 'success_rate':
+        #     p_nanb, _ =  fn.marg_rang(root, fn.not_rang(totalrang, value_dict)) # P(!A!B) todo negate rang_total
+        #     res.append(total_sup + p_nanb)
+        elif m == 'jaccard':
+            # P(A | B) / (P(A) + P(B)− P(AB))
+            res.append((total_sup / head_sup) / (body_sup + head_sup - total_sup))
+        else:
+            raise ValueError('Unknown metric: {}'.format(m))
     return res
-
-def rule_stats_df():
-    #todo
-    pass
 
 def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_sup', 'F'],
                               full_value_dict = None, beta=1., labeled=True):
@@ -222,16 +284,22 @@ def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_s
 #todo m-estimate https://scholar.google.de/scholar?q=m-estimate+rule+induction&hl=de&as_sdt=0&as_vis=1&oi=scholart
 
 class IntraNode:
-    def __init__(self, metrics, min_target_js = 0.2, min_local_js = 0., min_global_F=0.,
-                 body_max_len = 4, head_max_len = 1, min_global_conf = 'above_random', min_local_p = 0., beta=1.):
+    def __init__(self, metrics, min_target_js = 0.2, min_local_js = 0.,
+                 min_global_criterion=0., criterion='lift',
+                 body_max_len = 4, head_max_len = 1, min_global_conf = 'above_random', min_local_p = 0., beta=1.,
+                 ):
+        '''
+        @param criterion: primary cutoff criterion: must be in metrics
+        @param min_global_criterion: cutoff value for criterion'''
         self.body_max_len = body_max_len
         self.head_max_len = head_max_len
         self.min_local_p = min_local_p
         self.min_global_conf = min_global_conf
+        self.criterion = criterion
         self.min_target_js = min_target_js
         self.min_local_js = min_local_js
         self.min_local_p = min_local_p
-        self.min_global_F = min_global_F,
+        self.min_global_criterion = min_global_criterion,
         self.beta = beta
         self.metrics = metrics
 
@@ -270,7 +338,7 @@ class IntraNode:
         df = pd.DataFrame(rules, columns=cols, )
         return df.sort_values('F', ascending=False)
 
-    def rule_iterate(self, spn, target_vars, value_dict): 
+    def rule_iterate(self, spn, target_vars, value_dict):
         def _recurse_spn_local_rules(node, ):
             #first bottom up:
             for c in node.children:
@@ -370,13 +438,13 @@ class IntraNode:
             for r in l:
                 for head in heads:
                     if (head, r) not in self.rules_yielded:
-                        stats = rule_stats(root, r, head, metrics=self.metrics, beta=self.beta)
+                        stats = rule_stats(root, r, head, metrics=self.metrics, beta=self.beta, value_dict=value_dict)
                         if isinstance(self.min_global_conf, str) and self.min_global_conf == 'above_random':
                             min_conf = 1. / len(targetp)
                         else:
                             min_conf = self.min_global_conf
                         if stats[self.metrics.index('conf')] >= min_conf and \
-                                stats[self.metrics.index('F')] >= self.min_global_F:
+                                stats[self.metrics.index(self.criterion)] >= self.min_global_criterion:
                             self.rules_yielded[(head, r)] = True
                             yield [head, r, *stats]
                         else:
@@ -410,6 +478,14 @@ def df2labeled(df, value_dict):
 #         sup =
 #         for m in metrics:
 
+# def rule_onehot2categorical(r, value_dict, vd_onehot):
+#     iscond = False
+#     if isinstance(r, Condition):
+#         r = [r]
+#         iscond = True
+#     else:
+#         for cond in r:
+#             pass
 
 def slice_head_iter(iter, n):
     res, count = [], 0
@@ -443,3 +519,9 @@ def head_compatible_body(head, body, one_hot_vd, full_value_dict):
             return True
     return True
 
+def prob_round(x):
+    sign = np.sign(x)
+    x = abs(x)
+    is_up = random.random() < x-int(x)
+    round_func = math.ceil if is_up else math.floor
+    return sign * round_func(x)

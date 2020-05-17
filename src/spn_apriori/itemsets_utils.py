@@ -345,7 +345,7 @@ def calc_itemsets_df(train, spn, min_sup, test = None, value_dict=None, test_use
         itemsets = _catch_up_SPN(spn, itemsets, value_dict, 'support_pred')
     itemsets['support_mean'] = itemsets[['support_pred', 'support']].mean(axis=1)
     itemsets['difference'] = itemsets.support - itemsets.support_pred
-    itemsets['difference_percent'] = itemsets.difference / itemsets.support
+    itemsets['difference_percent'] = itemsets.difference / itemsets.support.replace({0.0: np.NaN})
     itemsets['length'] = itemsets['itemsets'].apply(lambda x: len(x))
     # itemsets = itemsets[itemsets['length'] >= 2]
     itemsets = itemsets.sort_values('support_mean', ascending=False)
