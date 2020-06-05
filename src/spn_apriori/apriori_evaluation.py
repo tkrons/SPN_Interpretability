@@ -88,7 +88,7 @@ def spn_hyperparam_opt(df, value_dict, test_frac = 0.5):
     return spn_hyperparam_results
 
 
-def plot_error_brackets(itemsets, error_names, dataset_name, ylog=False,): #todo discuss MRE = +inf problem and fix, plots are bad
+def plot_error_brackets(itemsets, error_names, dataset_name, ylog=False,):
     # bracket wise analysis
     # brackets = [i for i in np.linspace(0, 1, 11,) if i < both.support.max()]
     print('=============== Error Metrics ==================')
@@ -145,8 +145,8 @@ def plot_error_brackets(itemsets, error_names, dataset_name, ylog=False,): #todo
 
 if __name__ == '__main__':
     ## PARAMETERS ##
-    dataset_name = "lending"
-    only_n_rows = 10000
+    dataset_name = "UCI"
+    only_n_rows = None
     
     min_sup = 0.2
     # min_sup = 0 oder nah an null lässt PC einfrieren..

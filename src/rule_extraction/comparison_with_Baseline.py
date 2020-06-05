@@ -26,15 +26,16 @@ from spn_apriori.itemsets_utils import calc_itemsets_df
 from spn_apriori.spn_based_apriori import generate_rules_apriori, spn_apriori
 from mlxtend.frequent_patterns import association_rules, apriori
 
+# todo rdc mis analysis?
 # dataset_name = 'adult41'
 # targts = [3,5]
 dataset_name = 'titanic'
-# targts = [0, 7]
-# dataset_name = 'lending'
 # targts = [0, 1]
+# dataset_name = 'lending'
+# targts = [0, 7]
 recalc_SPN = True
 rdc_threshold, min_instances_slice = 0.1, 0.01
-n_rows = None
+n_rows = 100000
 beta = 0.2
 metrics = ['sup', 'conf', 'lift', 'F', 'leverage', 'interestingness', 'PiSh', 'jaccard']
 
@@ -45,8 +46,11 @@ spn = spn_handler.load_or_create_spn(df, value_dict, parametric_types, dataset_n
 
 onehot_df, vd_onehot, pt_onehot = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot = True)
 spn_one_hot = spn_handler.load_or_create_spn(onehot_df, vd_onehot, pt_onehot, dataset_name + '_one_hot', rdc_threshold, min_instances_slice,
-                               nrows=n_rows, seed=1, force_create=recalc_SPN, clustering='km_rule_clustering')
-targts = list(range(len(df.columns))) # todo all targets!
+                               nrows=n_rows, seed=1, force_create=recalc_SPN, clustering='rule_clustering')
+
+targts = []
+for t in df.nunique()[df.nunique() < 4].index: # todo all targets!
+    targts.append(list(df.columns).index(t))
 
 # print(fn.get_sub_populations(spn, rule=True))
 # subpops = fn.get_leaf_populations(spn,)
@@ -71,9 +75,11 @@ print('INTRA')
 
 path_intra = res_path + '/cache/intra_{}.pckl'.format(dataset_name)
 if os.path.exists(path_intra):
+    print('loading')
     with open(path_intra, 'rb') as f:
         intra_df = pickle.load(f)
 else:
+    print('calculating')
     intra = rule_ex.IntraNode(**comparable_hyperparams)
     intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict,
                                     rules_per_value = rules_per_value,
@@ -90,8 +96,10 @@ print('TOPDOWN')
 
 path_topdown = res_path + '/cache/topdown_df_{}.csv'.format(dataset_name)
 if os.path.exists(path_topdown):
+    print('loading')
     topdown_rules = pd.read_csv(path_topdown, index_col=0)
 else:
+    print('calculating')
     topdown_rules = rule_ex.topdown_interesting_rules(spn_one_hot, vd_onehot, metrics, full_value_dict = value_dict, beta=beta)
     topdown_rules.to_csv(path_topdown)
 topdown_rules = topdown_rules.sort_values(['F'], ascending=False)
@@ -141,7 +149,7 @@ else:
     ap_rules['F'] = rule_ex.fbeta_score(ap_rules.confidence, ap_rules.support, 0.2)
     ap_rules = ap_rules.loc[ap_rules.consequents.apply(len) == 1]
 
-    del all_itemsets, spn_apriori_df, normal_apriori_df
+    # del all_itemsets, spn_apriori_df, normal_apriori_df #todo ?
 
     # frozenset format to Rule(Condition) format
     spn_ap_rules = spn_ap_rules[['consequents', 'antecedents']].apply(
@@ -197,28 +205,13 @@ print('SUMMARY')
 
 print('possible num of target values: {}'.format(df[df.columns[targts]].nunique().sum() * rules_per_value))
 # SAMPLING
-height, bins, _ = plt.hist(intra_df.sup, bins=5)
+height, bins, _ = plt.hist(intra_df.sup, bins=10)
 bins = bins[1:]
 plt.close()
-height = [h * rules_per_value / sum(height) for h in height]
+height = [(h * rules_per_value) / sum(height) for h in height]
 
-# # bins = [np.mean([bins[i], b]) for i, b in enumerate(bins[1:])]
-# height = [np.mean([height[i-1], 0., height[i+1]]) if h == 0 else h for i, h in enumerate(height)]
-# height_new = []
-# for i, h in enumerate(height):
-#     if i==0:
-#         height_new.append(np.mean([h, h, height[i+1]]))
-#     elif i == len(height) - 1:
-#         height_new.append(np.mean([h, h, height[i - 1]]))
-#     else:
-#         height_new.append(np.mean([height[i - 1], h, h, height[i + 1]]))
-# bins[-1] = 1.
-
-# TODO new
 def sample_rules(ap_rules, bins, height, rules_per_value):
     idx = pd.Index([])
-    print(bins)
-    print(height)
     for head in ap_rules['head'].unique():
         # print(head)
         # print(len(idx))
@@ -255,10 +248,16 @@ def sample_rules(ap_rules, bins, height, rules_per_value):
 
 l_ap, l_spn_ap, iterations = [], [], 3
 for i in range(iterations):
-    ap_rand = sample_rules(ap_rules, bins, height, rules_per_value)
+    while True:
+        ap_rand = sample_rules(ap_rules, bins, height, rules_per_value)
+        if np.isclose(ap_rand.sup.mean(), intra_df.sup.mean(), rtol=0.07):
+            break
     ap_rand.method.replace({'Apriori': 'Apriori-rand_{}'.format(i)}, inplace=True)
     l_ap.append(ap_rand)
-    spn_ap_rand = sample_rules(spn_ap_rules, bins, height, rules_per_value)
+    while True:
+        spn_ap_rand = sample_rules(spn_ap_rules, bins, height, rules_per_value)
+        if np.isclose(spn_ap_rand.sup.mean(), intra_df.sup.mean(), rtol=0.07):
+            break
     spn_ap_rand.method.replace({'SPN-Apriori': 'SPN-Apriori-rand_{}'.format(i)}, inplace=True)
     l_spn_ap.append(spn_ap_rand)
 ap_rand = pd.concat(l_ap, ignore_index=True).reset_index(drop=True)
@@ -287,7 +286,7 @@ summary = summary.loc[['IntraNode', 'Topdown', 'Apriori TopN', 'SPN-Apriori TopN
 print('rdc_treshold: {} min_instances_slice: {}'.format(rdc_threshold, min_instances_slice))
 print(summary)
 # summary.to_csv(res_path+'summary_{}.csv'.format(dataset_name))
-summary.to_latex(res_path+'summary_{}.txt'.format(dataset_name))
+summary.to_latex(res_path+'summary_{}.txt'.format(dataset_name), index=False)
 pass
 
 

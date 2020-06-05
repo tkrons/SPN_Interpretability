@@ -144,20 +144,23 @@ def get_interesting_leaves(spn, subpop, value_dict, top=5, min_conf = 'above_ran
     res_leaves, diffs = [], []
     for leaf in leaves:
         # we are not interested in leaves already contained in the rule AND sometimes columns may have a constant value
+        if len(res_leaves) >= top:
+            break
         if not len(leaf.rule) == 0 and len(leaf.rule.get_similar_conditions(leaf.scope[0])) == 0 and not len(leaf.p) == 1:
             if isinstance(leaf, Categorical):
                 assert len(leaf.scope) == 1
                 # p = list
                     # prior = prior_dist[leaf.scope[0]]
                     # prior = [1 - prior, prior]7
-                if np.argmax(leaf.p) == 0:
-                    continue # only positive
-                elif len(leaf.p) > 2:
+                # if np.argmax(leaf.p) == 0:
+                #     continue # only positive
+                # assume target = 1 assumes one-hot
+                if len(leaf.p) > 2:
                     raise ValueError()
                 prior = prior_gen.calculate_prior(spn, leaf, value_dict)
                 js = jensenshannon(leaf.p, prior, )
                 if min_conf == 'above_random':
-                    if max(leaf.p) > prior[np.argmax(leaf.p)]:
+                    if leaf.p[1] > prior[1]:
                         diffs.append(js)
                         res_leaves.append(leaf)
                 else:
@@ -250,15 +253,17 @@ def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None):
 def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_sup', 'F'],
                               full_value_dict = None, beta=1., labeled=True):
     #todo rule propagate as left: var = threshold right: var != threshold
-    # @ rule merge (x = 5) (x != 3) -> (x = 5) automatic regulation
     subpops = fn.get_sub_populations(spn,)
-    l = []
+    l = {}
     for sub in subpops:
-        l.extend(get_interesting_leaves(spn, sub, value_dict, top=6))
+        scope = frozenset([leaf.scope[0] for leaf in sub[1]])
+        rule = sub[1][0].rule
+        if (scope, rule) in l:
+            l[(scope, rule)] = get_interesting_leaves(spn, sub, value_dict, top=6)
     sorted(l, key=lambda x: x[2])
     # rules = [[get_leaf_rules(leaf), diff, weight] for leaf, diff, weight in l]
     rules = []
-    for leaf, diff, weight in l:
+    for leaf, diff, weight in l.values():
         leafrules = get_leaf_rules(leaf)
         for r in leafrules:
             if head_compatible_body(r[1], r[0], one_hot_vd=value_dict, full_value_dict=full_value_dict):
@@ -272,7 +277,7 @@ def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_s
             continue
         stats = rule_stats(spn, rule, head, metrics=metrics, beta=beta)
 
-        if stats[metrics.index('F')] > 0.03:
+        if stats[metrics.index('lift')] > 1.1:
         # if True:
             final_rules.append((head, rule, *stats))
     if labeled:

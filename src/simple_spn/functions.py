@@ -12,8 +12,7 @@ from spn.structure.Base import Node, Sum, Product, Leaf
 from spn.structure.leaves.parametric.Parametric import Categorical, Gaussian
 from spn.structure.leaves.piecewise.PiecewiseLinear import PiecewiseLinear
 from spn.experiments.AQP.leaves.identity.IdentityNumeric import IdentityNumeric
-
-
+from spn.experiments.AQP.Ranges import NominalRange, NumericRange, Range
 
 '''
 #############################
@@ -52,6 +51,22 @@ def probs_iter_spflow(spn, data): #todo is the performance/RAM consumption bette
     for i in range(len(data)):
         yield prob_spflow(spn, data[i])
     raise StopIteration()
+
+def not_rang(rang, value_dict):
+    assert len(rang) == len(value_dict)
+    res = [None] * len(rang)
+    for i, r in enumerate(rang):
+        if not r is np.NaN:
+            if not isinstance(r, Range):
+                vals = list(value_dict[i][2].keys())
+                vals.pop(r)
+            else:
+                vals = list(value_dict[i][2].keys())
+                for v in r.get_ranges():
+                    vals.pop(v)
+            res[i] = NominalRange(vals)
+    return res
+
 
 '''
 ############################

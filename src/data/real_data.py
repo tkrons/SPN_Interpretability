@@ -217,9 +217,61 @@ def get_titanic(col_names=None, onehot=False, only_n_rows=None, seed=None):
     if only_n_rows and only_n_rows < len(df):
         df = df.sample(only_n_rows, random_state=seed)
     if onehot:
+        df['Survived'] = df['Survived'].astype(bool).astype(str)
         df = pd.get_dummies(df)
 
     return fn.transform_dataset(df)
+
+def mini_titanic():
+    data={'Survived': {356: True,
+  255: True,
+  380: True,
+  859: False,
+  886: False,
+  248: True,
+  598: False,
+  372: False,
+  574: False,
+  820: True},
+ 'Embarked': {356: 'Southampton',
+  255: 'Cherbourg',
+  380: 'Cherbourg',
+  859: 'Cherbourg',
+  886: 'Southampton',
+  248: 'Southampton',
+  598: 'Cherbourg',
+  372: 'Southampton',
+  574: 'Southampton',
+  820: 'Southampton'},
+ 'Sex': {356: 'female',
+  255: 'female',
+  380: 'female',
+  859: 'male',
+  886: 'male',
+  248: 'male',
+  598: 'male',
+  372: 'male',
+  574: 'male',
+  820: 'female'}}
+    columns=['Survived', 'Embarked', 'Sex']
+    small = pd.DataFrame(data, columns=columns)
+    small = small.sort_values(['Survived', 'Sex', 'Embarked'])
+    print(small.to_latex(index=False))
+    return fn.transform_dataset(small)
+
+def mini_leding(seed=1):
+    with open('../../_data/lending/loan.csv', 'r', encoding='latin-1') as f:
+        used_cols = ['loan_amnt', 'loan_status', 'term', 'purpose', 'int_rate', 'grade', 'emp_length',
+                     'home_ownership', 'annual_inc']
+        df = pd.read_csv(f, usecols=used_cols)
+        df = _shorten_df(df, 100, seed=seed)
+    df = df[~df.loan_status.isin(['Does not meet the credit policy. Status:Charged Off',
+                                  'Does not meet the credit policy. Status:Fully Paid'])]
+    df.loan_status.replace(['Late (31-120 days)', 'Late (16-30 days)', 'In Grace Period'], 'Late', inplace=True)
+    df.emp_length.replace([str(i) + ' years' for i in range(2, 10)], '1-10 years', inplace=True)
+    df.dropna(inplace=True)
+    df = df[~df.home_ownership.isin(['OTHER', 'ANY'])]
+    return df
 
 def get_titanic_bins(col_names=None, onehot=False, only_n_rows=None, seed=None):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/titanic/train.csv"
@@ -245,6 +297,7 @@ def get_titanic_bins(col_names=None, onehot=False, only_n_rows=None, seed=None):
     if only_n_rows and only_n_rows < len(df):
         df = df.sample(only_n_rows, random_state=seed)
     if onehot:
+        df['Survived'] = df['Survived'].astype(bool).astype(str)
         df = pd.get_dummies(df)
 
     return fn.transform_dataset(df)
@@ -308,7 +361,8 @@ def get_adult_41_items(onehot = False, only_n_rows=None, seed = None):
         # one_hot_df = pd.DataFrame(fit.transform(data), columns=fit.columns_)
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
         tabular = pd.read_table(path, sep=',', names=columns, skipinitialspace=True)
-        df = pd.get_dummies(tabular, prefix='', prefix_sep='', dtype=np.bool)
+        # todo previously prefix = prefix_sep = ''
+        df = pd.get_dummies(tabular.astype(str), prefix=None, prefix_sep='_', dtype=np.bool)
     else:
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
         df = pd.read_table(path, sep=',', names = columns, skipinitialspace=True)
@@ -356,3 +410,21 @@ def get_play_store(one_hot=True):
     parametric_types_onehot = get_feature_types_from_dataset(onehot)
     one_hot, value_dict_onehot, _ = fn.transform_dataset(onehot, ['discrete'] * len(onehot.columns))
     return onehot, value_dict_onehot, parametric_types_onehot
+
+if __name__ == '__main__':
+    df , vd, pars = mini_titanic()
+    from simple_spn import spn_handler
+    from simple_spn import functions as fn
+    from spn.io.Text import spn_to_str_equation
+    spn = spn_handler.load_or_create_spn(df, vd, pars, 'mini_titanic', 0.1,
+                                         0.1,
+                                         nrows=None, seed=1, force_create=True, clustering='km_rule_clustering')
+    str_df = df.round(0)
+    repl_dict = {col: vd[icol][2] for icol, col in enumerate(str_df.columns)}
+    cols = str_df.columns
+    new_df = str_df.copy(deep=True)
+    new_df[cols[0]] = str_df[cols[0]].replace(repl_dict[cols[0]])
+    new_df[cols[1]] = str_df[cols[1]].replace(repl_dict[cols[1]])
+    new_df[cols[2]] = str_df[cols[2]].replace(repl_dict[cols[2]])
+    rang = [np.NaN] * len(spn.scope)
+    pass
