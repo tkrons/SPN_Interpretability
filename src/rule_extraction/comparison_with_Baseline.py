@@ -35,9 +35,9 @@ dataset_name = 'titanic'
 # targts = [0, 7]
 recalc_SPN = True
 rdc_threshold, min_instances_slice = 0.1, 0.01
-n_rows = 100000
+n_rows = None
 beta = 0.2
-metrics = ['sup', 'conf', 'lift', 'F', 'leverage', 'interestingness', 'PiSh', 'jaccard']
+metrics = ['sup', 'conf', 'lift', 'F', 'leverage', 'interestingness', 'PiSh', 'jaccard', 'cosine_distance']
 
 # get data
 df, value_dict, parametric_types = real_data.get_real_data(dataset_name, only_n_rows=n_rows, seed=1, onehot=False)
@@ -63,13 +63,14 @@ lax_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 'above_random',
                    'body_max_len': 6, 'min_local_js': 0.,
                    'criterion': 'F', 'min_global_criterion': 0.05,
                    'beta': beta, 'metrics': metrics}
-comparable_hyperparams = {'min_target_js': 0.05, 'min_global_conf': 'above_random',
-                          'body_max_len': 6, 'min_local_js': 0.,
-                          'min_global_criterion': 1.4, 'criterion': 'lift',
+comparable_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 'above_random',
+                          'body_max_len': 5, 'min_local_js': 0.,
+                          'min_global_criterion': 1.1, 'criterion': 'lift',
                           'beta': beta, 'metrics': metrics}
-min_threshold_ap = 1.0
+min_threshold_ap = 1.1
 criterion_ap = 'lift'
 rules_per_value = 5
+print('possible num of target values: {}'.format(df[df.columns[targts]].nunique().sum() * rules_per_value))
 
 print('INTRA')
 
@@ -165,14 +166,16 @@ else:
     # ap_rules = ap_rules[ap_rules['head'].apply(lambda x: target_in_set(target_str, x))]
 
     spn_ap_stats = spn_ap_rules.apply(
-        lambda x: tuple(rule_ex.rule_stats(spn_one_hot, x['body'], x['head'], metrics, beta=beta, value_dict=vd_onehot)),
+        lambda x: tuple(rule_ex.rule_stats(spn_one_hot, x['body'], x['head'], metrics,
+                                           real_data=onehot_df, beta=beta, value_dict=vd_onehot)),
         axis=1,
         result_type='expand'
     ).rename(columns={i: metr for i, metr in enumerate(metrics)})
     spn_ap_rules = spn_ap_rules.merge(spn_ap_stats, left_index=True, right_index=True)
 
     ap_stats = ap_rules.apply(
-        lambda x: tuple(rule_ex.rule_stats(spn_one_hot, x['body'], x['head'], metrics, beta=beta, value_dict=vd_onehot)),
+        lambda x: tuple(rule_ex.rule_stats(spn_one_hot, x['body'], x['head'], metrics,
+                                           real_data=onehot_df, beta=beta, value_dict=vd_onehot)),
         axis=1,
         result_type='expand'
     ).rename(columns={i: metr for i, metr in enumerate(metrics)})
@@ -203,7 +206,6 @@ eval.to_csv(res_path + 'evaluation_{}.csv'.format(dataset_name))
 
 print('SUMMARY')
 
-print('possible num of target values: {}'.format(df[df.columns[targts]].nunique().sum() * rules_per_value))
 # SAMPLING
 height, bins, _ = plt.hist(intra_df.sup, bins=10)
 bins = bins[1:]
@@ -271,7 +273,7 @@ summary = pd.concat([eval[eval.method.isin(['Topdown', 'IntraNode'])],
                      spn_ap_rand,
                      ap_topn], ignore_index=True, sort=False).reset_index(drop=True)
 summary['head'] = summary['head'].astype(str)
-aggs = {'sup': ['mean', 'count'], 'conf': 'mean', 'lift': 'median', 'F': 'mean', 'leverage': 'mean', 'interestingness': 'mean', 'PiSh': 'mean', 'jaccard': 'mean'} # list of list would be mutable references
+aggs = {'sup': ['mean', 'count'], 'conf': 'mean', 'lift': 'median', 'F': 'mean', 'leverage': 'mean', 'interestingness': 'mean', 'PiSh': 'mean', 'jaccard': 'mean', 'cosine_distance': 'mean'} # list of list would be mutable references
 summary = summary.groupby('method').agg(aggs).round(4)
 # group iteration samples
 labls_sap = ['SPN-Apriori-rand_{}'.format(i) for i in range(iterations)]
@@ -286,7 +288,7 @@ summary = summary.loc[['IntraNode', 'Topdown', 'Apriori TopN', 'SPN-Apriori TopN
 print('rdc_treshold: {} min_instances_slice: {}'.format(rdc_threshold, min_instances_slice))
 print(summary)
 # summary.to_csv(res_path+'summary_{}.csv'.format(dataset_name))
-summary.to_latex(res_path+'summary_{}.txt'.format(dataset_name), index=False)
+summary.to_latex(res_path+'summary_{}.txt'.format(dataset_name), )
 pass
 
 

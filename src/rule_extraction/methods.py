@@ -144,23 +144,20 @@ def get_interesting_leaves(spn, subpop, value_dict, top=5, min_conf = 'above_ran
     res_leaves, diffs = [], []
     for leaf in leaves:
         # we are not interested in leaves already contained in the rule AND sometimes columns may have a constant value
-        if len(res_leaves) >= top:
-            break
         if not len(leaf.rule) == 0 and len(leaf.rule.get_similar_conditions(leaf.scope[0])) == 0 and not len(leaf.p) == 1:
             if isinstance(leaf, Categorical):
                 assert len(leaf.scope) == 1
                 # p = list
                     # prior = prior_dist[leaf.scope[0]]
                     # prior = [1 - prior, prior]7
-                # if np.argmax(leaf.p) == 0:
-                #     continue # only positive
-                # assume target = 1 assumes one-hot
-                if len(leaf.p) > 2:
+                if np.argmax(leaf.p) == 0:
+                    continue # only positive
+                elif len(leaf.p) > 2:
                     raise ValueError()
                 prior = prior_gen.calculate_prior(spn, leaf, value_dict)
                 js = jensenshannon(leaf.p, prior, )
                 if min_conf == 'above_random':
-                    if leaf.p[1] > prior[1]:
+                    if max(leaf.p) > prior[np.argmax(leaf.p)]:
                         diffs.append(js)
                         res_leaves.append(leaf)
                 else:
@@ -198,7 +195,18 @@ def rule_str2idx(r, value_dict):
         return Rule(res_conds)
 
 
-def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None):
+def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None, real_data=None):
+    '''
+    :param root:
+    :param body:
+    :param head:
+    :param metrics:
+    :param local:
+    :param beta:
+    :param value_dict:
+    :param real_data: dont use SPN, instead EXACT values for probabilities
+    :return:
+    '''
     if isinstance(head.var, str):
         body = rule_str2idx(body, value_dict)
         head = rule_str2idx(head, value_dict)
@@ -208,16 +216,22 @@ def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None):
         body_sup = fn.prob_spflow(local, rang)
         head_rang = get_spn_range(head, local)
         head_sup = fn.prob_spflow(root, head_rang)
+        totalrang = get_spn_range(body.merge(head), root)
+        total_sup = fn.prob_spflow(local, totalrang)
+    elif real_data:
+        body_bool = body.apply(real_data, value_dict,)
+        body_sup = body_bool.mean()
+        head_bool = head.apply(real_data, value_dict)
+        head_sup = body_bool.mean()
+        total_sup = np.logical_and(body_bool, head_bool).mean()
     else: #global
         body_sup = fn.prob_spflow(root, rang)
         head_rang = get_spn_range(head, root)
         head_sup = fn.prob_spflow(root, head_rang)
-    # true_pos = np.logical_and(res, head.op(data[head.var], head.threshold))
-    totalrang = get_spn_range(body.merge(head), root)
-    if local:
-        total_sup = fn.prob_spflow(local, totalrang)
-    else:
+        totalrang = get_spn_range(body.merge(head), root)
         total_sup = fn.prob_spflow(root, totalrang)
+    # true_pos = np.logical_and(res, head.op(data[head.var], head.threshold))
+
     conf = total_sup / body_sup
 
     for m in metrics:
@@ -236,6 +250,8 @@ def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None):
             res.append(conf / head_sup)
         elif m == 'interestingness':
             res.append(total_sup / body_sup - head_sup)
+        elif m == 'cosine_distance':
+            res.append(1 - total_sup / np.sqrt( body_sup * head_sup ))
         elif m == 'PiSh':
             res.append(total_sup - body_sup * head_sup)
         elif m == 'leverage':
@@ -250,20 +266,16 @@ def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None):
             raise ValueError('Unknown metric: {}'.format(m))
     return res
 
-def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_sup', 'F'],
+def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_sup', 'F', 'cosine_distance'],
                               full_value_dict = None, beta=1., labeled=True):
-    #todo rule propagate as left: var = threshold right: var != threshold
     subpops = fn.get_sub_populations(spn,)
-    l = {}
+    l = []
     for sub in subpops:
-        scope = frozenset([leaf.scope[0] for leaf in sub[1]])
-        rule = sub[1][0].rule
-        if (scope, rule) in l:
-            l[(scope, rule)] = get_interesting_leaves(spn, sub, value_dict, top=6)
+        l.extend(get_interesting_leaves(spn, sub, value_dict, top=6))
     sorted(l, key=lambda x: x[2])
     # rules = [[get_leaf_rules(leaf), diff, weight] for leaf, diff, weight in l]
     rules = []
-    for leaf, diff, weight in l.values():
+    for leaf, diff, weight in l:
         leafrules = get_leaf_rules(leaf)
         for r in leafrules:
             if head_compatible_body(r[1], r[0], one_hot_vd=value_dict, full_value_dict=full_value_dict):
@@ -275,9 +287,9 @@ def topdown_interesting_rules(spn, value_dict, metrics = ['sup', 'conf', 'head_s
         rule, head = lst[0]
         if len(rule) == 0 or len(head) == 0:
             continue
-        stats = rule_stats(spn, rule, head, metrics=metrics, beta=beta)
+        stats = rule_stats(spn, rule, head, metrics=metrics, beta=beta, )
 
-        if stats[metrics.index('lift')] > 1.1:
+        if stats[metrics.index('F')] > 0.03:
         # if True:
             final_rules.append((head, rule, *stats))
     if labeled:

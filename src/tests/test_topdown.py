@@ -3,7 +3,6 @@ Created on 5.3.2020
 
 @author: tkrons
 '''
-from rule_extraction.rule_clustering import RuleClustering
 import numpy as np
 from simple_spn import spn_handler
 from data import real_data, synthetic_data
