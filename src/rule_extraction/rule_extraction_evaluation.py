@@ -56,7 +56,7 @@ def hyperparam_grid_search(data, spn, value_dict,):
         intra = rule_ex.IntraNode(**params)
         targts = [3, 5, 6]
         print('Targets: ', [data.columns[i] for i in targts])
-        intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict, max_candidates=50,
+        intra_df = intra.intra_rules_df(data, spn, target_vars=targts, value_dict=value_dict, max_candidates=50,
                                         labels=True)
 
         eval_intra = evaluate_rules(data, intra_df, value_dict, metrics=metrics, beta=beta)
@@ -128,7 +128,7 @@ if __name__ == '__main__':
     print('Num of rules expected: ', sum([len(value_dict[t][2].keys()) for t in targts]) * rules_per_value)
     intra = rule_ex.IntraNode(**lax_hyperparams)
     print('Targets: ', [df.columns[i] for i in targts])
-    intra_df = intra.intra_rules_df(spn, target_vars=targts, value_dict=value_dict,
+    intra_df = intra.intra_rules_df(df, spn, target_vars=targts, value_dict=value_dict,
                                     rules_per_value = rules_per_value,
                                     # max_candidates=1000,
                                     labels=True,)

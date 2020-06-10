@@ -218,11 +218,11 @@ def rule_stats(root, body, head, metrics, local=None, beta=1, value_dict=None, r
         head_sup = fn.prob_spflow(root, head_rang)
         totalrang = get_spn_range(body.merge(head), root)
         total_sup = fn.prob_spflow(local, totalrang)
-    elif real_data:
-        body_bool = body.apply(real_data, value_dict,)
+    elif real_data is not None:
+        body_bool = body.apply(real_data, value_dict=value_dict,)
         body_sup = body_bool.mean()
-        head_bool = head.apply(real_data, value_dict)
-        head_sup = body_bool.mean()
+        head_bool = head.apply(real_data, value_dict=value_dict)
+        head_sup = head_bool.mean()
         total_sup = np.logical_and(body_bool, head_bool).mean()
     else: #global
         body_sup = fn.prob_spflow(root, rang)
@@ -323,8 +323,10 @@ class IntraNode:
         self.prior_gen = prior_distributions_lazy()
         self.rules_yielded = {} # True: yielded False: not qualified
 
-    def intra_rules_df(self, spn, target_vars, value_dict, max_candidates=1000, labels=False, rules_per_value=None):
+    def intra_rules_df(self, df, spn, target_vars, value_dict, max_candidates=None, labels=False, rules_per_value=None):
         itr = self.rule_iterate(spn, target_vars, value_dict)
+        self.rules_yielded = {}
+        self.df = df
         # rules = list(itr)
         rules = []
         target_values = {t: {k: 0 for k in value_dict[t][2].keys()} for t in target_vars}
@@ -344,6 +346,7 @@ class IntraNode:
                 i += 1
             else:
                 raise ValueError()
+        print('len rules after iter: {}'.format(len(rules)))
         if labels:
             for lst in rules:
 
@@ -353,6 +356,7 @@ class IntraNode:
                 # body, head = str(body), str(head)
         cols = ['head', 'body', *self.metrics]
         df = pd.DataFrame(rules, columns=cols, )
+        print('len rules after labeling: '.format(len(df)))
         return df.sort_values('F', ascending=False)
 
     def rule_iterate(self, spn, target_vars, value_dict):
@@ -382,8 +386,7 @@ class IntraNode:
                                 yield res
             # end recurse method
 
-        def _leaves_target_allrules(node, target, vars, value_dict, root=None, targetp=None, ncandidates=None,
-                                    ):
+        def _leaves_target_allrules(node, target, vars, value_dict, root=None, targetp=None, ncandidates=None,):
             eligable_leaves = []
 
             for var in vars:
@@ -455,15 +458,22 @@ class IntraNode:
             for r in l:
                 for head in heads:
                     if (head, r) not in self.rules_yielded:
-                        stats = rule_stats(root, r, head, metrics=self.metrics, beta=self.beta, value_dict=value_dict)
+                        # exact stats only evaluation TODO if you want to optimize for performance, only use spn_stats
+                        real_stats = rule_stats(root, r, head, metrics=self.metrics,
+                                           real_data=self.df, beta=self.beta, value_dict=value_dict)
+                        # local quickly calculated stats
+                        spn_stats = rule_stats(root, r, head, metrics=self.metrics, beta=self.beta, value_dict=value_dict)
                         if isinstance(self.min_global_conf, str) and self.min_global_conf == 'above_random':
-                            min_conf = 1. / len(targetp)
+                            min_conf = 1. / len(value_dict[head.var][2])
                         else:
                             min_conf = self.min_global_conf
-                        if stats[self.metrics.index('conf')] >= min_conf and \
-                                stats[self.metrics.index(self.criterion)] >= self.min_global_criterion:
+                        if self.criterion == 'cosine_distance':
+                            better_than_crit = spn_stats[self.metrics.index(self.criterion)] <= self.min_global_criterion
+                        else:
+                            better_than_crit = spn_stats[self.metrics.index(self.criterion)] >= self.min_global_criterion
+                        if spn_stats[self.metrics.index('conf')] >= min_conf and better_than_crit:
                             self.rules_yielded[(head, r)] = True
-                            yield [head, r, *stats]
+                            yield [head, r, *real_stats]
                         else:
                             self.rules_yielded[(head, r)] = False
             # leaves target rules END
