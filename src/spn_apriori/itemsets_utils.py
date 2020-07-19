@@ -142,11 +142,11 @@ def difference_plot(itemsets, fname=None, reg_line=True, dataset_name=None):
     # ymax = itemsets.difference.abs().max()
     # plt.ylim(-ymax - 0.01, ymax + 0.01)
     plt.ylim(-0.02, 0.02)
-    # plt.yscale('symlog') #todo which scale
+    # plt.yscale('symlog')
     plt.xlabel('support')
     plt.ylabel('residual (support - support_pred)')
     if fname:
-        plt.title(fname.split('.pdf')[0])
+        # plt.title(fname.split('.pdf')[0])
         path = '../../_figures/' + dataset_name
         if not os.path.exists(path):
             os.makedirs(path)
@@ -157,7 +157,6 @@ def difference_plot(itemsets, fname=None, reg_line=True, dataset_name=None):
 
 def diagonal_support_scatter(itemsets, fname=None, dataset_name=None):
     # diagonal scatterplot y = spn_ap x = normal_ap
-    #todo 'reverse' log to visualize whole value range
     # https://stackoverflow.com/questions/5395554/custom-axis-scales-reverse-logarithmic
     fig, ax = plt.subplots()
     def forward(x):
@@ -263,7 +262,7 @@ def get_error_totals(df, min_sup, errors):
             res.append((PRED.difference ** 2).sum())
         elif 'MSE' == e:
             res.append((PRED.difference ** 2).mean())
-        elif 'MRE' == e: #todo check case df.support = 0 div by zero
+        elif 'MRE' == e:
             res.append((PRED.difference / df.support).replace([np.inf, -np.inf], np.nan).abs().mean())
         elif 'Missing Sets' == e: #percentage of predictions? (but missing sets not in total predictions!)
             res.append(df.loc[df.support_pred < min_sup, 'itemsets'].count()) #/ df.loc[df.support_pred >= min_sup, 'itemsets'].count())

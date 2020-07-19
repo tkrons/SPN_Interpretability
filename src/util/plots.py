@@ -4,7 +4,7 @@ import numpy as np
 from scipy.stats import multivariate_normal
 from sklearn.inspection import plot_partial_dependence
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 
 def colored_corr_matrix(df, name=None, file=None):
     # set the colormap and centre the colorbar on an arbitary midpoint
@@ -57,7 +57,8 @@ def colored_corr_matrix(df, name=None, file=None):
             num = matrix[i, j]
             # seems like .matshow and .text have different xy orientation...
             ax.text(j, i, '{:.2f}'.format(num), fontsize=13, va='center', ha='center')
-    plt.colorbar(im, fraction=0.046, pad=0.04)
+    cbar = plt.colorbar(im, fraction=0.046, pad=0.04)
+    cbar.ax.set_ylabel('correlation', rotation=90)
     plt.tight_layout()
     if file:
         plt.savefig(file, bbox_inches='tight')
@@ -68,16 +69,17 @@ def partial_dependence_titanic(pth):
     df = get_titanic(original=True)
     # lending= get_lending(2000, original=True)
     # X = df.drop(columns=['Survived'])
-    df = df.dropna(subset=['Pclass', 'Age', 'Fare', ])
-    X = df[['Pclass', 'Age', 'Fare', 'Parch']]
+    df = df.dropna(subset=['Pclass', 'Age', 'Fare', 'Sex'])
+    X = df[['Pclass', 'Age', 'Fare', 'Parch', 'Sex']]
+    X['Sex'].replace({'male': 1, 'female': 0}, inplace=True)
     # X = df.drop(columns=['Survived', ])
     y = df['Survived']
     # X,y = lending.drop(columns=['loan_amnt']), lending['loan_amnt']
-    # clf = GradientBoostingClassifier(n_estimators=10, learning_rate=1.0, max_depth = 1, random_state = 0).fit(X,y)
-    clf = RandomForestClassifier(50).fit(X,y)
-    # clf = LinearRegression(normalize=True).fit(X,y)
+    # clf = GradientBoostingClassifier(n_estimators=500, learning_rate=0.2, max_depth = 1, random_state = 0).fit(X,y)
+    clf = RandomForestClassifier(200, min_samples_split=20, min_samples_leaf=5, max_features=3).fit(X,y)
+    # clf = LogisticRegression().fit(X,y)
     fig,_ = plt.subplots(ncols=3, figsize=(8,4))
-    plot_partial_dependence(clf, X, ['Pclass', 'Age', 'Fare'], fig=fig, grid_resolution=40)
+    plot_partial_dependence(clf, X, ['Pclass', 'Age', 'Fare'], fig=fig, grid_resolution=50)
     fig = plt.gcf()
     axes = fig.get_axes()
 

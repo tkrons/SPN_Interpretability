@@ -1,7 +1,7 @@
 '''
 Created on 19.07.2019
 
-@author: Moritz, Tim
+@author: tkrons
 '''
 import numpy as np
 import matplotlib.pyplot as plt
@@ -40,6 +40,7 @@ cross_eval_hyperparams = pd.concat(cross_eval_hyperparams, ignore_index=True).se
 print(cross_eval_hyperparams.to_string())
 cross_eval_hyperparams.to_csv('cross_eval_hyper.csv', sep=',')
 
+# HEATMAP
 for which_comparison in ['train_vs_test', 'spn_vs_train', 'spn_vs_test']:
     error_to_use = 'MAE'
     # which_comparison = 'spn_vs_train'
@@ -100,7 +101,6 @@ for which_comparison in ['train_vs_test', 'spn_vs_train', 'spn_vs_test']:
     plt.savefig("../../_figures/{}/{}_subplots_heatmap.pdf".format(dataset_name, which_comparison))
     plt.show()
 
-# TODO ================ train_test spn_test comparison
 for min_sup in min_sup_range:
     xs = cross_eval_hyperparams['MAE'].xs([(0.1, 0.01),], level=[0]).reset_index()
     xs = xs[xs['compare'].isin(['train_vs_test', 'spn_vs_test'])]

@@ -47,7 +47,7 @@ def prob_spflow(spn, inst):
 def probs_spflow(spn, data):
     return Inference.likelihood(spn, data, dtype=np.float64).reshape(len(data))  
 
-def probs_iter_spflow(spn, data): #todo is the performance/RAM consumption better?
+def probs_iter_spflow(spn, data):
     for i in range(len(data)):
         yield prob_spflow(spn, data[i])
     raise StopIteration()
@@ -648,7 +648,6 @@ def plot_spn(spn, fname="plot.pdf", value_dict=None):
     nx.draw_networkx_edge_labels(g, pos=pos, edge_labels=nx.get_edge_attributes(g, "weight"), clip_on=False, alpha=0.6)
     if value_dict:
         text = '\n'.join([str(i)+': '+str(val[1]) for i, val in enumerate(value_dict.items())])
-        #TODO fix annotation for das_beispiel
         plt.annotate(text, xy=(0.05, 0.95), xycoords='axes fraction')
     plt.savefig(fname, bbox_inches="tight", pad_inches=0)
 
@@ -668,7 +667,6 @@ def plot_spn_to_svg(root_node, fname="plot.svg"):
     
 def __get_networkx_obj(spn):
     import networkx as nx
-    #TODO prettier graph? with node plots and right variable names
     all_nodes = get_nodes_by_type(spn)
     g = nx.Graph()
 
@@ -698,10 +696,3 @@ def __get_networkx_obj(spn):
             g.add_edge(c.id, n.id, weight=edge_label)
 
     return g, labels
-
-def plot_subgroups_TSNE(spn):
-    #idea: color each spn subgroup on a TSNE plot, kind of a benchmark? if too many subgroups, take higher levels
-    # todo plot_subgroups TSNE
-    return
-
-

@@ -5,6 +5,9 @@ Created on 5.3.2020
 '''
 import numpy as np
 import pandas as pd
+
+import rule_extraction.intranode
+import rule_extraction.topdown
 from simple_spn import spn_handler
 from data import real_data
 from simple_spn import functions as fn
@@ -53,7 +56,7 @@ def hyperparam_grid_search(data, spn, value_dict,):
     df_list = []
     for comb in combinations:
         params = dict(zip(hyperparams.keys(), comb))
-        intra = rule_ex.IntraNode(**params)
+        intra = rule_extraction.intranode.IntraNode(**params)
         targts = [3, 5, 6]
         print('Targets: ', [data.columns[i] for i in targts])
         intra_df = intra.intra_rules_df(data, spn, target_vars=targts, value_dict=value_dict, max_candidates=50,
@@ -120,13 +123,12 @@ if __name__ == '__main__':
     # rules = [get_labeled_rule(pop[0], df.columns) for pop in l]
     # rules = rule_ex.topdown_interesting_rules(spn, df, value_dict)
 
-    # #todo method: choosing rules based on overlap / overall support
     lax_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 'above_random', 'body_max_len': 6, 'min_local_js': 0.,
                        'min_global_F': 0.05, 'beta': beta, 'metrics': ['sup', 'conf', 'conviction', 'F']}
     rules_per_value = 100
 
     print('Num of rules expected: ', sum([len(value_dict[t][2].keys()) for t in targts]) * rules_per_value)
-    intra = rule_ex.IntraNode(**lax_hyperparams)
+    intra = rule_extraction.intranode.IntraNode(**lax_hyperparams)
     print('Targets: ', [df.columns[i] for i in targts])
     intra_df = intra.intra_rules_df(df, spn, target_vars=targts, value_dict=value_dict,
                                     rules_per_value = rules_per_value,
@@ -138,7 +140,7 @@ if __name__ == '__main__':
     print(rule_ex.df_display(intra_df))
 
     if len(vd_onehot[0][2]) == 2:
-        topdown_rules = rule_ex.topdown_interesting_rules(spn_one_hot, vd_onehot, full_value_dict = value_dict, beta=beta)
+        topdown_rules = rule_extraction.topdown.topdown_interesting_rules(spn_one_hot, vd_onehot, full_value_dict = value_dict, beta=beta)
         topdown_rules = topdown_rules.sort_values(['F'], ascending=False)
         topdown_rules.to_csv(res_path + 'topdown_df_{}.csv'.format(dataset_name))
         print(rule_ex.df_display(topdown_rules))

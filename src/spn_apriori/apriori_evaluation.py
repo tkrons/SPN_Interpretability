@@ -148,7 +148,7 @@ if __name__ == '__main__':
     dataset_name = "UCI"
     only_n_rows = None
     
-    min_sup = 0.2
+    min_sup = 0.01
     # min_sup = 0 oder nah an null lässt PC einfrieren..
     rdc_threshold, min_instances_slice = 0.1, 0.01
     recalc_spn = True
@@ -217,7 +217,6 @@ if __name__ == '__main__':
     # evals = cross_eval(df, dataset_name, [0.01, 0.03, 0.05, 0.1, 0.2, 0.4], value_dict, recalc_spn=recalc_spn)
     # print(evals.to_string())
 
-    #todo fix support_pred = 1.0 Bug. for values in valuedict if not occuring in dataset
     print('itemsets with the biggest difference:')
     # print(both.sort_values('difference', ascending=False).head(4).to_string())
     print(all_itemsets.reindex(all_itemsets['difference'].abs().sort_values(ascending=False).index).head(4).to_string())

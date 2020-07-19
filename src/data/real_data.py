@@ -32,7 +32,7 @@ def get_real_data(name, **kwargs):
             }
     return case[name](**kwargs)
 
-def get_lending(only_n_rows = None, seed = None, onehot = True):
+def get_lending(only_n_rows = None, seed = None, onehot = True, original=False,):
     '''
     https://www.kaggle.com/wendykan/lending-club-loan-data
     about 2.200.000 rows,
@@ -44,10 +44,19 @@ def get_lending(only_n_rows = None, seed = None, onehot = True):
                     'home_ownership', 'annual_inc']
         df = pd.read_csv(f, usecols=used_cols)
         df = _shorten_df(df, only_n_rows, seed=seed)
+    if original:
+        return df
     df = df[~df.loan_status.isin(['Does not meet the credit policy. Status:Charged Off',
                                  'Does not meet the credit policy. Status:Fully Paid'])]
     df.loan_status.replace(['Late (31-120 days)', 'Late (16-30 days)', 'In Grace Period'], 'Late', inplace=True)
+    df.loan_status.replace('Default', 'Charged Off', inplace=True)
     df.emp_length.replace([str(i) + ' years' for i in range(2, 10)], '1-10 years', inplace=True)
+    df.emp_length.replace(['< 1 year', '1 year'], '<= 1 year', inplace=True)
+    df.grade.replace({'A': 'good', 'B': 'good', 'C': 'medium', 'D': 'medium','E': 'bad', 'F': 'bad', 'G': 'bad'}, inplace=True)
+
+    keep = (df.purpose.value_counts()[df.purpose.value_counts().head(10).index]).index.to_list()
+    df.purpose = df.purpose[df.purpose.isin(keep)]
+
     df.dropna(inplace=True)
     numeric_cols = df.columns[~(df.dtypes == np.object)]
     # df[numeric_cols] = discretizer.fit_transform(df[numeric_cols])
@@ -55,9 +64,9 @@ def get_lending(only_n_rows = None, seed = None, onehot = True):
     for c in numeric_cols:
         # quantiles = np.round(df[c].quantile([0.25, 0.5, 0.75])).astype(int).tolist()
         # q_labels = [x.format(low=quantiles[0], mid=quantiles[1], high=quantiles[2]) for x in ['0 - {low}', '{low} - {mid}', '{mid} - {high}', '{high} - inf']]
-        quantiles = np.round(df[c].quantile([0.33, 0.66])).astype(int).tolist()
-        q_labels = [x.format(low=quantiles[0], high=quantiles[1]) for x in
-                    ['0 - {low}', '{low} - {high}', '{high} - inf']]
+        quantiles = np.round(df[c].quantile([0.25, 0.5, 0.75])).astype(int).tolist()
+        q_labels = [x.format(low=quantiles[0], mid=quantiles[1], high=quantiles[2], max=int(df[c].max())) for x in
+                    ['0 - {low}', '{low} - {mid}', '{mid} - {high}', '{high} - {max}']]
         df[c] = pd.cut(df[c],
                        bins = [-np.inf] + quantiles + [np.inf],
                        labels = q_labels,
@@ -201,10 +210,12 @@ def _one_hot_value_dict(df,):
         vd[i] = ['discrete', c, {0: 0, 1: 1}]
     return vd
 
-def get_titanic(col_names=None, onehot=False, only_n_rows=None, seed=None):
+def get_titanic(col_names=None, onehot=False, only_n_rows=None, seed=None, original=False):
     path = os.path.dirname(os.path.realpath(__file__)) + "/../../_data/titanic/train.csv"
 
     df = pd.read_csv(path)
+    if original:
+        return df
     df.drop(columns=["PassengerId", "Name", "Ticket", "Cabin"], inplace=True)
     
     if col_names is not None:
@@ -361,7 +372,6 @@ def get_adult_41_items(onehot = False, only_n_rows=None, seed = None):
         # one_hot_df = pd.DataFrame(fit.transform(data), columns=fit.columns_)
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
         tabular = pd.read_table(path, sep=',', names=columns, skipinitialspace=True)
-        # todo previously prefix = prefix_sep = ''
         df = pd.get_dummies(tabular.astype(str), prefix=None, prefix_sep='_', dtype=np.bool)
     else:
         columns = ['education', 'marital-status', 'relationship', 'race', 'sex', 'income', 'age']
@@ -412,19 +422,89 @@ def get_play_store(one_hot=True):
     return onehot, value_dict_onehot, parametric_types_onehot
 
 if __name__ == '__main__':
-    df , vd, pars = mini_titanic()
     from simple_spn import spn_handler
-    from simple_spn import functions as fn
+    import matplotlib.pyplot as plt
+    from spn.structure.leaves.parametric.Parametric import Categorical
+
     from spn.io.Text import spn_to_str_equation
-    spn = spn_handler.load_or_create_spn(df, vd, pars, 'mini_titanic', 0.1,
-                                         0.1,
+    #
+    # df , vd, pars = mini_titanic()
+    # from simple_spn import functions as fn
+    # from spn.io.Text import spn_to_str_equation
+    # spn = spn_handler.load_or_create_spn(df, vd, pars, 'mini_titanic', 0.1,
+    #                                      0.1,
+    #                                      nrows=None, seed=1, force_create=True, clustering='km_rule_clustering')
+    # str_df = df.round(0)
+    # repl_dict = {col: vd[icol][2] for icol, col in enumerate(str_df.columns)}
+    # cols = str_df.columns
+    # new_df = str_df.copy(deep=True)
+    # new_df[cols[0]] = str_df[cols[0]].replace(repl_dict[cols[0]])
+    # new_df[cols[1]] = str_df[cols[1]].replace(repl_dict[cols[1]])
+    # new_df[cols[2]] = str_df[cols[2]].replace(repl_dict[cols[2]])
+    # rang = [np.NaN] * len(spn.scope)
+    #
+
+    # mini spn example
+    x = np.random.choice([1,2], int(1e4), replace=True, p=[0.3, 0.7])
+    p = {1: [0.9, 0.1, 0.], 2: [0., 0.9, 0.1]}
+    y=[]
+    for v in x:
+        y.append(np.random.choice([1, 2, 3], 1, replace=True, p=p[v]))
+    y = np.array(y).reshape(-1,)
+    z = np.random.choice([1, 2], int(1e4), replace=True, p=[0.4, 0.6])
+    df = pd.DataFrame(dict(zip(['X', 'Y', 'Z'], [x,y,z]))).astype(str)
+    df, vd, pars = fn.transform_dataset(df)
+    spn = spn_handler.load_or_create_spn(df, vd, pars, 'mini_example', 0.4,
+                                         0.5,
                                          nrows=None, seed=1, force_create=True, clustering='km_rule_clustering')
-    str_df = df.round(0)
-    repl_dict = {col: vd[icol][2] for icol, col in enumerate(str_df.columns)}
-    cols = str_df.columns
-    new_df = str_df.copy(deep=True)
-    new_df[cols[0]] = str_df[cols[0]].replace(repl_dict[cols[0]])
-    new_df[cols[1]] = str_df[cols[1]].replace(repl_dict[cols[1]])
-    new_df[cols[2]] = str_df[cols[2]].replace(repl_dict[cols[2]])
-    rang = [np.NaN] * len(spn.scope)
+    spn = spn.children[1]
+    manspn = ( 0.3 * (Categorical(p=[0.9, 0.1], scope=0) * Categorical(p=[0.55, 0.4, 0.05], scope=1))
+               + 0.7 * (Categorical(p=[0., 1.], scope=0) * Categorical(p=[0.1, 0.2, 0.7], scope=1)) ) \
+            * (Categorical(p=[0.4, 0.6], scope=2))
+    # plot leaves from example
+    p = [[0.9, 0.1], [0.4,0.55,0.05], [0.,1.], [0.1,0.2,0.7], [0.4,0.6]]
+    y=2
+    size = (2.88*y, y)
+    fig, axes = plt.subplots(1, 4, sharey=True, squeeze=True, figsize=size)
+    for i, var in enumerate(['X', 'Y', 'X', 'Y']):
+        currp = p[i]
+        ax = axes[i]
+        # if i in [1,2]:
+        #     d = df[var].value_counts(sort=False).divide(len(df))
+        # if i in [3,4]:
+
+        ticks=list(range(len(currp)))
+        labels = ['{}{}'.format(var, i) for i, _ in enumerate(currp)]
+        ax.bar(ticks, currp, )
+        ax.set_xticks(ticks, )
+        ax.set_xticklabels(labels)
+        if i==0:
+            ax.set_ylabel('probability')
+        # plt.xticklabels
+        # ax.set_ylim([0,1])
+    plt.tight_layout()
+    plt.savefig('../../_figures/rule_extraction/leaves4.png', bbox_inches='tight', dpi=400)
+    plt.show()
+    from spn.structure.leaves.parametric.Parametric import Poisson
+    # Z plot
+    fig, ax =plt.subplots(figsize=(size[0]/2.5, size[1]))
+    currp = p[4]
+    ticks = list(range(len(currp)))
+    labels = ['{}{}'.format('Z', i) for i, _ in enumerate(currp)]
+    ax.bar(ticks, currp, )
+    ax.set_xticks(ticks, )
+    ax.set_xticklabels(labels)
+    ax.set_ylim([0.,1.05])
+    ax.set_ylabel('probability')
+    ax.yaxis.set_label_position("right")
+    ax.yaxis.tick_right()
+    plt.savefig('../../_figures/rule_extraction/leaf5.png', bbox_inches='tight', dpi=400)
+    plt.show()
+
+    fn.plot_spn(spn)
+    df,_,_ = get_titanic_bins()
+    c=df.Pclass.astype(int).value_counts()
+    r = c / c.sum()
+    r.index = pd.Index(['1st Class', '2nd Class', '3rd Class'])
+    r.plot('bar')
     pass
