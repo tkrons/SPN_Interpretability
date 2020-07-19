@@ -1,6 +1,7 @@
 '''
 Created on 5.3.2020
 
+Older script for evaluation and hyperparam optimization of IntraNode and Topdown by themselves.
 @author: tkrons
 '''
 import numpy as np
@@ -122,9 +123,12 @@ if __name__ == '__main__':
     # l = get_interesting_leaves(spn, subpops[0])
     # rules = [get_labeled_rule(pop[0], df.columns) for pop in l]
     # rules = rule_ex.topdown_interesting_rules(spn, df, value_dict)
-
-    lax_hyperparams = {'min_target_js': 0.1, 'min_global_conf': 'above_random', 'body_max_len': 6, 'min_local_js': 0.,
-                       'min_global_F': 0.05, 'beta': beta, 'metrics': ['sup', 'conf', 'conviction', 'F']}
+    lax_hyperparams = {'min_target_js': 0.05, 'min_global_conf': 0,
+                              'body_max_len': 6, 'min_local_js': 0.,
+                              'min_global_criterion': 1.2, 'criterion': 'lift',  # vorher lift = 1.2
+                              'beta': beta, 'metrics': ['sup', 'conf', 'lift', 'F', 'leverage', 'recall', 'interestingness', 'cosine_distance'],
+                              # 'min_recall': 0.2
+                              }
     rules_per_value = 100
 
     print('Num of rules expected: ', sum([len(value_dict[t][2].keys()) for t in targts]) * rules_per_value)

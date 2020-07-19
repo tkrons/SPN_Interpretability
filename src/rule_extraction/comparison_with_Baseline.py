@@ -3,7 +3,7 @@ Created on 5.3.2020
 
 @author: tkrons
 
-Script for the evaluation of both Intranode and Topdown
+Script for the evaluation of both Intranode and Topdown vs Apriori.
 '''
 import numpy as np
 import pandas as pd
@@ -39,7 +39,7 @@ dataset_name = 'lending'
 n_rows = None
 # targts = [0, 1]
 # dataset_name = 'lending'
-recalc_SPN = False
+recalc_SPN = True
 rdc_threshold, min_instances_slice = 0.1, 0.01
 beta = 0.2
 metrics = ['sup', 'conf', 'lift', 'F', 'leverage', 'recall', 'interestingness', 'PiSh', 'jaccard', 'cosine_distance']
